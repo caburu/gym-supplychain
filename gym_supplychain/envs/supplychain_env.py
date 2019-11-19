@@ -22,7 +22,7 @@ class SupplyChainEnv(gym.Env):
         self.action_space = spaces.Discrete(4)
 
          # observation is the x, y coordinate of the grid
-        self.observation_space = spaces.Discrete(self.rows*self.cols-1)
+        self.observation_space = spaces.Discrete(self.rows*self.cols)
 
 
     def step(self, action):
