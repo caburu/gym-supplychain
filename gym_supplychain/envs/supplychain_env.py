@@ -83,7 +83,7 @@ class SupplyChainEnv(gym.Env):
 
 
         # Estrutura para guardar todas as entregas. Por tempo, por nível.
-        self.initial_shipment = np.zeros((self.max_weeks+1+self.max_ship_delay, self.levels), dtype=int)
+        self.initial_shipment = np.zeros((self.max_weeks+self.max_ship_delay+1, self.levels), dtype=int)
         # Tratando as entregas pendentes já no momento inicial
         self.initial_shipment[1:1+self.initial_shipment_times][:] = self.initial_shipment_values
 
@@ -126,6 +126,7 @@ class SupplyChainEnv(gym.Env):
         self.shipments[self.week+self.max_ship_delay][:-1] =  \
             np.maximum(np.zeros(self.levels-1, dtype=int),
                        np.minimum(self.inventory[1:], self.incoming_orders[1:]))
+        #print('shipments incoming orders:\n',self.shipments)
         # Desconta do estoque
         self.inventory -= self.incoming_orders
 
@@ -142,7 +143,8 @@ class SupplyChainEnv(gym.Env):
         self.incoming_orders[1:] = self.orders_placed[:-1]
 
         # Pedidos para a fábrica (último nível) são colocados para entrega
-        self.shipments[self.week+self.max_ship_delay][-1] = self.incoming_orders[-1]
+        self.shipments[self.week+self.max_ship_delay][-1] = self.orders_placed[-1]
+        #print('shipments factory orders:\n',self.shipments)
 
         # 5. Place orders
 
@@ -181,11 +183,13 @@ class SupplyChainEnv(gym.Env):
         print('\n' + '='*20)
         print('Week:\t', self.week)
         print('Inventory:\t', self.inventory)
-        print('Incoming orders:\t', '[?]', self.incoming_orders[1:])
+        print('Incoming order:\t', '[?]', self.incoming_orders[1:])
         print('Orders placed:\t', self.orders_placed)
         if self.week < self.max_weeks:
-            print('Next customer demanda:\t', self.customer_demand[self.week])
-        print('Next shipments:\t', self.shipments[self.week+self.max_ship_delay][:])
+            print('Next customer demand:\t', self.customer_demand[self.week])
+        #print('Print shipments:\n', self.shipments)
+        #print('self.shipments[', self.week+1, ':', self.week+self.max_ship_delay+1, ']')
+        print('Next shipments:\t', list(self.shipments[self.week+1:self.week+self.max_ship_delay+1]))
         pass
 
     def close(self):
