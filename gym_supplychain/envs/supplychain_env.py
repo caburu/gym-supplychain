@@ -26,7 +26,7 @@ class SupplyChainEnv(gym.Env):
     def decode_actions(self, action):
         return self.int_to_array(action, self.levels, self.action_codes)
 
-    def code_state(self, inventory):
+    def code_state_ARTIGO(self, inventory):
         state = [0]*len(inventory)
         for i in range(len(inventory)):
             if inventory[i] < -6:
@@ -49,43 +49,71 @@ class SupplyChainEnv(gym.Env):
                 state[i] = 8
         return np.asarray(state)
 
+    def code_state(self, inventory):
+        state = [0]*len(inventory)
+        for i in range(len(inventory)):
+            if inventory[i] < -3:
+                state[i] = 0
+            elif inventory[i] < 4:
+                state[i] = 1
+            elif inventory[i] < 10:
+                state[i] = 2
+            elif inventory[i] < 18:
+                state[i] = 3
+            elif inventory[i] < 21:
+                state[i] = 4
+            elif inventory[i] < 24:
+                state[i] = 5
+            elif inventory[i] < 27:
+                state[i] = 6
+            elif inventory[i] < 30:
+                state[i] = 7
+            else:
+                state[i] = 8
+        return np.asarray(state)
+
 
     def __init__(self, env_init_info={}):
         '''Initial inventory is a list with the initial inventory position for each level
         '''
 
+        # PARAMETRIZAR
         # Número de níveis da cadeia
         self.levels = 4
         # A CODIFICAÇÃO DE ESTADOS E AÇÕES DEVERIA ESTAR NO AGENTE E NÃO NO AMBIENTE
         self.state_codes = 9
-        self.action_codes = 4
+        #self.action_codes = 4
+        self.action_codes = 7
         self.inv_cost = 1
         self.backlog_cost = 2
 
         # Nos vetores, a posição zero é do retailer
 
-        # Quantidade de itens em cada estoque
+        # Valores padrões do MIT Beer Game (usados se não forem passados outros valores)
+        beer_game_std_demands     = [4]*4 + [8]*31
+        beer_game_std_inventory   = 12 + np.zeros(self.levels)
+        beer_game_std_ship_delay  = 2
+        beer_game_std_ship_value  = 4
+        beer_game_std_orders_value= 4
 
         # Demanda dos clientes a cada semana
-        self.customer_demand = np.asarray(env_init_info['customer_demand'])
+        self.customer_demand = np.asarray(env_init_info.get('customer_demand', beer_game_std_demands))
         # Quantidade inicial de estoque em cada nível
-        self.initial_inventory = 12 + np.zeros(self.levels)
+        self.initial_inventory = np.asarray(env_init_info.get('initial_inventory', beer_game_std_inventory))
         # Número de semanas a simular
         self.max_weeks = len(self.customer_demand)
-        # Máximo leadtime de entrega   ## MUDAR PARA O CASO DO ARTIGO
-        self.max_ship_delay = 2
+        # Máximo leadtime de entrega   ## MUDAR PARA O CASO DO ARTIGO (Deve incluir delay[0]=2 (padrão))
+        self.shipment_delays = np.asarray(env_init_info.get('shipment_delays', beer_game_std_ship_delay + np.zeros(self.max_weeks+1, dtype=int)))
         # Valor inicial de ítens em transporte
-        self.initial_shipment_values = 4
-        # Por quanto tempo essas unidades em transporte vão chegar
-        self.initial_shipment_times = 2
+        self.initial_shipment_value = env_init_info.get('initial_shipment_value', beer_game_std_ship_value)
         # Pedidos colocados inicialmente
-        self.initial_orders_value = 4
+        self.initial_orders_value = env_init_info.get('initial_orders_value', beer_game_std_orders_value)
 
 
         # Estrutura para guardar todas as entregas. Por tempo, por nível.
-        self.initial_shipment = np.zeros((self.max_weeks+self.max_ship_delay+1, self.levels), dtype=int)
+        self.initial_shipment = np.zeros((self.max_weeks+self.shipment_delays[0]+1, self.levels), dtype=int)
         # Tratando as entregas pendentes já no momento inicial
-        self.initial_shipment[1:1+self.initial_shipment_times][:] = self.initial_shipment_values
+        self.initial_shipment[1:1+self.shipment_delays[0]][:] = self.initial_shipment_value
 
         # Pedidos colocados para o nível acima
         self.initial_orders_placed = self.initial_orders_value + np.zeros(self.levels, dtype=int)
@@ -123,7 +151,7 @@ class SupplyChainEnv(gym.Env):
         # tratado no recebimento do passo anterior e aqui)
 
         # Faz entrega
-        self.shipments[self.week+self.max_ship_delay][:-1] =  \
+        self.shipments[self.week+self.shipment_delays[self.week]][:-1] =  \
             np.maximum(np.zeros(self.levels-1, dtype=int),
                        np.minimum(self.inventory[1:], self.incoming_orders[1:]))
         #print('shipments incoming orders:\n',self.shipments)
@@ -143,7 +171,7 @@ class SupplyChainEnv(gym.Env):
         self.incoming_orders[1:] = self.orders_placed[:-1]
 
         # Pedidos para a fábrica (último nível) são colocados para entrega
-        self.shipments[self.week+self.max_ship_delay][-1] = self.orders_placed[-1]
+        self.shipments[self.week+self.shipment_delays[self.week]][-1] = self.orders_placed[-1]
         #print('shipments factory orders:\n',self.shipments)
 
         # 5. Place orders
@@ -151,7 +179,8 @@ class SupplyChainEnv(gym.Env):
         # cada nível passa para o nível acima um pedido de tamanho X+Y
         # onde X é o que recebeu de demanda e Y é a quantidade a decidir pelo agente
 
-        self.orders_placed = self.incoming_orders + Y_actions
+        #self.orders_placed = self.incoming_orders + Y_actions
+        self.orders_placed = self.incoming_orders + Y_actions - 3
 
         # 6. Tratando agora as questões de Aprendizado (recompensa e próximo estado)
 
@@ -188,8 +217,8 @@ class SupplyChainEnv(gym.Env):
         if self.week < self.max_weeks:
             print('Next customer demand:\t', self.customer_demand[self.week])
         #print('Print shipments:\n', self.shipments)
-        #print('self.shipments[', self.week+1, ':', self.week+self.max_ship_delay+1, ']')
-        print('Next shipments:\t', list(self.shipments[self.week+1:self.week+self.max_ship_delay+1]))
+        #print('self.shipments[', self.week+1, ':', self.week+self.shipment_delays[self.week]+1, ']')
+        print('Next shipments:\t', list(self.shipments[self.week+1:self.week+self.shipment_delays[self.week]+1]))
         pass
 
     def close(self):
