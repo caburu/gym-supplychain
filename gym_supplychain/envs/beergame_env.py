@@ -10,20 +10,22 @@ class BeerGameEnv(gym.Env):
         '''Initial inventory is a list with the initial inventory position for each level
         '''
 
-        # PARAMETRIZAR
-        # Número de níveis da cadeia
-        self.levels = 4
-        self.inv_cost = 1
-        self.backlog_cost = 2
-
-        # Nos vetores, a posição zero é do retailer
-
         # Valores padrões do MIT Beer Game (usados se não forem passados outros valores)
+        beer_game_std_levels      = 4
         beer_game_std_demands     = [4]*4 + [8]*31
-        beer_game_std_inventory   = 12 + np.zeros(self.levels)
+        beer_game_std_inventory   = 12 + np.zeros(beer_game_std_levels)
         beer_game_std_ship_delay  = 2
         beer_game_std_ship_value  = 4
         beer_game_std_orders_value= 4
+        beer_game_std_inv_cost    = 1
+        beer_game_std_backlog_cost= 2
+
+        # Número de níveis da cadeia
+        self.levels       = env_init_info.get('levels', beer_game_std_levels)
+        # Custo por unidade em estoque por semana
+        self.inv_cost     = env_init_info.get('inv_cost', beer_game_std_inv_cost)
+        # Custo por unidade em backlog por semana
+        self.backlog_cost = env_init_info.get('backlog_cost', beer_game_std_backlog_cost)
 
         # Demanda dos clientes a cada semana
         self.customer_demand = np.asarray(env_init_info.get('customer_demand', beer_game_std_demands))
@@ -37,7 +39,6 @@ class BeerGameEnv(gym.Env):
         self.initial_shipment_value = env_init_info.get('initial_shipment_value', beer_game_std_ship_value)
         # Pedidos colocados inicialmente
         self.initial_orders_value = env_init_info.get('initial_orders_value', beer_game_std_orders_value)
-
 
         # Estrutura para guardar todas as entregas. Por tempo, por nível.
         self.initial_shipment = np.zeros((self.max_weeks+self.shipment_delays[0]+1, self.levels), dtype=int)
@@ -55,7 +56,6 @@ class BeerGameEnv(gym.Env):
         # Tratando variáveis do OpenAI Gym environment (# Ver uso do MultiDiscrete)
         #self.action_space = spaces.Discrete(self.action_codes**self.levels)
         #self.observation_space = spaces.Discrete(self.state_codes**self.levels)
-
 
     def step(self, action):
         self.week += 1
@@ -84,10 +84,9 @@ class BeerGameEnv(gym.Env):
         # Desconta do estoque
         self.inventory -= self.incoming_orders
 
-
         # 3. Record the invetory or backlog
 
-        # Já feito :)
+        # Já feito acima :)
 
         # 4. Advance the order slips
 
@@ -98,15 +97,13 @@ class BeerGameEnv(gym.Env):
 
         # Pedidos para a fábrica (último nível) são colocados para entrega
         self.shipments[self.week+self.shipment_delays[self.week]][-1] = self.orders_placed[-1]
-        #print('shipments factory orders:\n',self.shipments)
 
         # 5. Place orders
 
         # cada nível passa para o nível acima um pedido de tamanho X+Y
         # onde X é o que recebeu de demanda e Y é a quantidade a decidir pelo agente
 
-        #self.orders_placed = self.incoming_orders + action
-        self.orders_placed = self.incoming_orders + action - 3
+        self.orders_placed = self.incoming_orders + action
 
         # 6. Tratando agora as questões de Aprendizado (recompensa e próximo estado)
 
