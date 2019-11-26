@@ -3,7 +3,7 @@ from gym import error, spaces, utils
 from gym.utils import seeding
 import numpy as np
 
-class SupplyChainEnv(gym.Env):
+class BeerGameEnv(gym.Env):
     #metadata = {'render.modes': ['human']}
 
     def array_to_int(self, array, num_codes):
