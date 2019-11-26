@@ -6,73 +6,6 @@ import numpy as np
 class BeerGameEnv(gym.Env):
     #metadata = {'render.modes': ['human']}
 
-    def array_to_int(self, array, num_codes):
-        code = 0
-        for i in range(len(array)):
-            code += array[i]*(num_codes**i)
-        return code
-
-    def int_to_array(self, code, num_levels, num_codes):
-        array = [0]*num_levels
-        for i in range(num_levels-1,0,-1):
-            array[i] = code // num_codes**i
-            code = code % num_codes**i
-        array[0] = code
-        return array
-
-    def observation(self, state):
-        return self.array_to_int(state, self.state_codes)
-
-    def decode_actions(self, action):
-        return self.int_to_array(action, self.levels, self.action_codes)
-
-    def code_state_ARTIGO(self, inventory):
-        state = [0]*len(inventory)
-        for i in range(len(inventory)):
-            if inventory[i] < -6:
-                state[i] = 0
-            elif inventory[i] < -3:
-                state[i] = 1
-            elif inventory[i] < 0:
-                state[i] = 2
-            elif inventory[i] < 3:
-                state[i] = 3
-            elif inventory[i] < 6:
-                state[i] = 4
-            elif inventory[i] < 10:
-                state[i] = 5
-            elif inventory[i] < 15:
-                state[i] = 6
-            elif inventory[i] < 20:
-                state[i] = 7
-            else:
-                state[i] = 8
-        return np.asarray(state)
-
-    def code_state(self, inventory):
-        state = [0]*len(inventory)
-        for i in range(len(inventory)):
-            if inventory[i] < -3:
-                state[i] = 0
-            elif inventory[i] < 4:
-                state[i] = 1
-            elif inventory[i] < 10:
-                state[i] = 2
-            elif inventory[i] < 18:
-                state[i] = 3
-            elif inventory[i] < 21:
-                state[i] = 4
-            elif inventory[i] < 24:
-                state[i] = 5
-            elif inventory[i] < 27:
-                state[i] = 6
-            elif inventory[i] < 30:
-                state[i] = 7
-            else:
-                state[i] = 8
-        return np.asarray(state)
-
-
     def __init__(self, env_init_info={}):
         '''Initial inventory is a list with the initial inventory position for each level
         '''
@@ -80,10 +13,6 @@ class BeerGameEnv(gym.Env):
         # PARAMETRIZAR
         # Número de níveis da cadeia
         self.levels = 4
-        # A CODIFICAÇÃO DE ESTADOS E AÇÕES DEVERIA ESTAR NO AGENTE E NÃO NO AMBIENTE
-        self.state_codes = 9
-        #self.action_codes = 4
-        self.action_codes = 7
         self.inv_cost = 1
         self.backlog_cost = 2
 
@@ -124,14 +53,11 @@ class BeerGameEnv(gym.Env):
         self.current_state = None
 
         # Tratando variáveis do OpenAI Gym environment (# Ver uso do MultiDiscrete)
-        self.action_space = spaces.Discrete(self.action_codes**self.levels)
-        self.observation_space = spaces.Discrete(self.state_codes**self.levels)
+        #self.action_space = spaces.Discrete(self.action_codes**self.levels)
+        #self.observation_space = spaces.Discrete(self.state_codes**self.levels)
 
 
     def step(self, action):
-        Y_actions = np.asarray(self.decode_actions(action))
-        #Y_actions = np.asarray(self.decode_actions(0))
-
         self.week += 1
 
         # 1. Receive inventory and advance shipment delay
@@ -179,12 +105,12 @@ class BeerGameEnv(gym.Env):
         # cada nível passa para o nível acima um pedido de tamanho X+Y
         # onde X é o que recebeu de demanda e Y é a quantidade a decidir pelo agente
 
-        #self.orders_placed = self.incoming_orders + Y_actions
-        self.orders_placed = self.incoming_orders + Y_actions - 3
+        #self.orders_placed = self.incoming_orders + action
+        self.orders_placed = self.incoming_orders + action - 3
 
         # 6. Tratando agora as questões de Aprendizado (recompensa e próximo estado)
 
-        self.current_state = self.code_state(self.inventory)
+        self.current_state = np.copy(self.inventory)
 
         # A quantidade de itens disponíveis são os valores positivos do estoque
         inventory_onhand = np.clip(self.inventory,0,None)
@@ -195,7 +121,7 @@ class BeerGameEnv(gym.Env):
 
         is_terminal = self.week == self.max_weeks
 
-        return self.observation(self.current_state), reward, is_terminal, {}
+        return self.current_state, reward, is_terminal, {}
 
     def reset(self):
         self.week = 0
@@ -204,9 +130,9 @@ class BeerGameEnv(gym.Env):
         self.incoming_orders = np.copy(self.initial_incoming_orders)
         self.shipments = np.copy(self.initial_shipment)
 
-        self.current_state = self.code_state(self.inventory)
+        self.current_state = np.copy(self.inventory)
 
-        return self.observation(self.current_state)
+        return self.current_state
 
     def render(self, mode='human'):
         print('\n' + '='*20)
