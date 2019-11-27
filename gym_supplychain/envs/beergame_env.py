@@ -120,6 +120,8 @@ class BeerGameEnv(gym.Env):
 
         self.orders_placed = self.incoming_orders + action
 
+        self.all_orders_placed[:,self.week] = self.orders_placed.T
+
         # 6. Tratando agora as questões de Aprendizado (recompensa e próximo estado)
 
         self.current_state = np.copy(self.inventory)
@@ -130,6 +132,8 @@ class BeerGameEnv(gym.Env):
         backlog = -np.clip(self.inventory,None,0)
         # A recompensa é a soma ponderada dos custos de estoque e backlog
         reward = -np.sum(self.inv_cost*inventory_onhand + self.backlog_cost*backlog)
+        self.inventory_costs += self.inv_cost*inventory_onhand
+        self.backlog_costs += self.backlog_cost*backlog
 
         is_terminal = self.week == self.max_weeks
 
@@ -141,6 +145,12 @@ class BeerGameEnv(gym.Env):
         self.orders_placed = np.copy(self.initial_orders_placed)
         self.incoming_orders = np.copy(self.initial_incoming_orders)
         self.shipments = np.copy(self.initial_shipment)
+
+        self.inventory_costs = np.zeros(self.levels, dtype=int)
+        self.backlog_costs = np.zeros(self.levels, dtype=int)
+
+        self.all_orders_placed = np.zeros((self.levels,self.max_weeks+1), dtype=int)
+        self.all_orders_placed[:,0] = self.initial_orders_value
 
         self.current_state = np.copy(self.inventory)
 
@@ -156,9 +166,14 @@ class BeerGameEnv(gym.Env):
             print('Next customer demand:\t', self.customer_demand[self.week])
         #print('Print shipments:\n', self.shipments)
         #print('self.shipments[', self.week+1, ':', self.week+self.shipment_delays[self.week]+1, ']')
-        print('Next shipments:\t', [(i,list(self.shipments[i])) for i in range(self.week+1, self.week+4) if i < len(self.shipments)])
+        print('Next shipments:\t', [(i,list(self.shipments[i])) for i in range(self.week+1, self.week+6) if i < len(self.shipments)])
         print('Current delay:\t', self.shipment_delays[self.week])
-        pass
+        print('Inventory costs:\t', self.inventory_costs)
+        print('Backlog costs:\t', self.backlog_costs)
+        if (self.week == self.max_weeks):
+            print('All orders placed:')
+            for level in range(self.levels):
+                print(level, self.all_orders_placed[level])
 
     def close(self):
         pass
