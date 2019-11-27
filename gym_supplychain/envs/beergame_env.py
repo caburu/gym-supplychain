@@ -121,6 +121,9 @@ class BeerGameEnv(gym.Env):
         self.orders_placed = self.incoming_orders + action
 
         self.all_orders_placed[:,self.week] = self.orders_placed.T
+        self.all_inventory_pos[self.week] = self.inventory
+        self.all_actions[self.week] = action
+
 
         # 6. Tratando agora as questões de Aprendizado (recompensa e próximo estado)
 
@@ -134,6 +137,7 @@ class BeerGameEnv(gym.Env):
         reward = -np.sum(self.inv_cost*inventory_onhand + self.backlog_cost*backlog)
         self.inventory_costs += self.inv_cost*inventory_onhand
         self.backlog_costs += self.backlog_cost*backlog
+        self.weekly_costs[self.week] = -reward
 
         is_terminal = self.week == self.max_weeks
 
@@ -148,9 +152,15 @@ class BeerGameEnv(gym.Env):
 
         self.inventory_costs = np.zeros(self.levels, dtype=int)
         self.backlog_costs = np.zeros(self.levels, dtype=int)
+        self.weekly_costs = np.zeros(self.max_weeks+1)
 
         self.all_orders_placed = np.zeros((self.levels,self.max_weeks+1), dtype=int)
         self.all_orders_placed[:,0] = self.initial_orders_value
+
+        self.all_inventory_pos = np.zeros((self.max_weeks+1, self.levels), dtype=int)
+        self.all_inventory_pos[0] = self.inventory
+        self.all_actions       = np.zeros((self.max_weeks+1,self.levels), dtype=int)
+        self.all_actions[0] = 0
 
         self.current_state = np.copy(self.inventory)
 
@@ -170,6 +180,7 @@ class BeerGameEnv(gym.Env):
         print('Current delay:\t', self.shipment_delays[self.week])
         print('Inventory costs:\t', self.inventory_costs)
         print('Backlog costs:\t', self.backlog_costs)
+        print('Weekly cost:\t', self.weekly_costs)
         if (self.week == self.max_weeks):
             print('All orders placed:')
             for level in range(self.levels):
