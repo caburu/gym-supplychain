@@ -4,6 +4,8 @@ from gym.utils import seeding
 import numpy as np
 
 class BeerGameEnv(gym.Env):
+    """ OpenAI Gym Environment for the MIT Beer Game
+    """
     #metadata = {'render.modes': ['human']}
 
     def __init__(self, env_init_info={}):
@@ -34,7 +36,7 @@ class BeerGameEnv(gym.Env):
         # Número de semanas a simular
         self.max_weeks = len(self.customer_demand)
         # Máximo leadtime de entrega
-        self.shipment_delays = np.asarray([2] + env_init_info.get('shipment_delays', [beer_game_std_ship_delay]*self.max_weeks))
+        self.shipment_delays = np.asarray([beer_game_std_ship_delay] + env_init_info.get('shipment_delays', [beer_game_std_ship_delay]*self.max_weeks))
         # Valor inicial de ítens em transporte
         self.initial_shipment_value = env_init_info.get('initial_shipment_value', beer_game_std_ship_value)
         # Pedidos colocados inicialmente
@@ -45,7 +47,7 @@ class BeerGameEnv(gym.Env):
         for i in range(self.max_weeks+1):
             if i+self.shipment_delays[i]+1 > max_shipment_week:
                 max_shipment_week = i+self.shipment_delays[i]+1
-        self.initial_shipment = np.zeros((max_shipment_week, self.levels), dtype=int)
+        self.initial_shipment = np.zeros((max_shipment_week+1, self.levels), dtype=int)
         # Tratando as entregas pendentes já no momento inicial
         self.initial_shipment[1:1+self.shipment_delays[0]][:] = self.initial_shipment_value
 
@@ -75,18 +77,17 @@ class BeerGameEnv(gym.Env):
 
         # Retailer obtém a demanda do cliente
         self.incoming_orders[0] = self.customer_demand[self.week-1]
+        # Demais níveis recebem demanda do nível inferior (# 4. Advance the order slips)
+        self.incoming_orders[1:] = self.orders_placed[:-1]
 
-        # Valores negativos do estoque indicam o backlog.
-        # logo, tratamos aqui as entregas que chegam (e o backlog está indiretamente
-        # tratado no recebimento do passo anterior e aqui)
+        # Os pedidos a serem tratados são o que veio dos níveis abaixo da cadeia
+        # mais o que tinha pendente de backlog
+        orders_to_fill = self.incoming_orders + self.backlog
 
-        # O quanto será enviado para a entrega será o quanto foi pedido, se
+        # O quanto será enviado será o total de pedidos a serem tratados, se
         # possível, ou tudo que tem, se não for possível.
-        orders_to_deliver = np.maximum(np.zeros(self.levels, dtype=int),
-                                       np.minimum(self.inventory, self.incoming_orders))
-        # Tira tudo que foi pedido dos estoques. Isso porque o que passar do que
-        # tem no estoque será tratado como backlog (valor negativo de estoque)
-        self.inventory -= self.incoming_orders
+        orders_to_deliver = np.minimum(self.inventory, orders_to_fill)
+
         # Já a entrega considera apenas o que realmente pode ser entregue.
         # Se o tempo de delay é zero, entrega direto nos estoques dos níveis abaixo
         if self.shipment_delays[self.week] == 0:
@@ -94,18 +95,17 @@ class BeerGameEnv(gym.Env):
         else: # Se delay é maior que zero, agenda a entrega
             self.shipments[self.week+self.shipment_delays[self.week]][:-1] += orders_to_deliver[1:]
 
-        #print('shipments incoming orders:\n',self.shipments)
-
         # 3. Record the invetory or backlog
 
-        # Já feito acima :)
+        # Desconta do estoque tudo que foi enviado para entrega
+        self.inventory -= orders_to_deliver
+        # Guarda como backlog tudo que não foi possível entregar
+        self.backlog = orders_to_fill - orders_to_deliver
 
         # 4. Advance the order slips
 
         # Movendo os pedidos colocados para os pedidos chegando
-        # Obs: a informação do cliente não é atualizada aqui (valor fica lixo
-        #        até próximo passo)
-        self.incoming_orders[1:] = self.orders_placed[:-1]
+        # Já feito no Passo 2
 
         # Pedidos para a fábrica (último nível) são colocados para entrega
         if self.shipment_delays[self.week] == 0:
@@ -115,29 +115,21 @@ class BeerGameEnv(gym.Env):
 
         # 5. Place orders
 
-        # cada nível passa para o nível acima um pedido de tamanho X+Y
+        # Cada nível passa para o nível acima um pedido de tamanho X+Y
         # onde X é o que recebeu de demanda e Y é a quantidade a decidir pelo agente
 
         self.orders_placed = self.incoming_orders + action
 
         self.all_orders_placed[:,self.week] = self.orders_placed.T
-        self.all_inventory_pos[self.week] = self.inventory
-        self.all_actions[self.week] = action
-
 
         # 6. Tratando agora as questões de Aprendizado (recompensa e próximo estado)
 
         self.current_state = np.copy(self.inventory)
 
-        # A quantidade de itens disponíveis são os valores positivos do estoque
-        inventory_onhand = np.clip(self.inventory,0,None)
-        # O backlog é a quantidade de itens que falta no estoque (valores negativos)
-        backlog = -np.clip(self.inventory,None,0)
         # A recompensa é a soma ponderada dos custos de estoque e backlog
-        reward = -np.sum(self.inv_cost*inventory_onhand + self.backlog_cost*backlog)
-        self.inventory_costs += self.inv_cost*inventory_onhand
-        self.backlog_costs += self.backlog_cost*backlog
-        self.weekly_costs[self.week] = -reward
+        reward = -np.sum(self.inv_cost*self.inventory + self.backlog_cost*self.backlog)
+        self.inventory_costs += self.inv_cost*self.inventory
+        self.backlog_costs += self.backlog_cost*self.backlog
 
         is_terminal = self.week == self.max_weeks
 
@@ -146,21 +138,16 @@ class BeerGameEnv(gym.Env):
     def reset(self):
         self.week = 0
         self.inventory = np.copy(self.initial_inventory)
+        self.backlog = np.zeros(self.levels, dtype=int)
         self.orders_placed = np.copy(self.initial_orders_placed)
         self.incoming_orders = np.copy(self.initial_incoming_orders)
         self.shipments = np.copy(self.initial_shipment)
 
         self.inventory_costs = np.zeros(self.levels, dtype=int)
         self.backlog_costs = np.zeros(self.levels, dtype=int)
-        self.weekly_costs = np.zeros(self.max_weeks+1)
 
         self.all_orders_placed = np.zeros((self.levels,self.max_weeks+1), dtype=int)
         self.all_orders_placed[:,0] = self.initial_orders_value
-
-        self.all_inventory_pos = np.zeros((self.max_weeks+1, self.levels), dtype=int)
-        self.all_inventory_pos[0] = self.inventory
-        self.all_actions       = np.zeros((self.max_weeks+1,self.levels), dtype=int)
-        self.all_actions[0] = 0
 
         self.current_state = np.copy(self.inventory)
 
@@ -169,8 +156,8 @@ class BeerGameEnv(gym.Env):
     def render(self, mode='human'):
         print('\n' + '='*20)
         print('Week:\t', self.week)
-        print('Inventory:\t', self.inventory)
-        print('Incoming order:\t', '[?]', self.incoming_orders[1:])
+        print('Inventory:\t', self.inventory, self.backlog, self.inventory - self.backlog)
+        print('Incoming order:\t', self.incoming_orders)
         print('Orders placed:\t', self.orders_placed)
         if self.week < self.max_weeks:
             print('Next customer demand:\t', self.customer_demand[self.week])
@@ -180,7 +167,6 @@ class BeerGameEnv(gym.Env):
         print('Current delay:\t', self.shipment_delays[self.week])
         print('Inventory costs:\t', self.inventory_costs)
         print('Backlog costs:\t', self.backlog_costs)
-        print('Weekly cost:\t', self.weekly_costs)
         if (self.week == self.max_weeks):
             print('All orders placed:')
             for level in range(self.levels):
