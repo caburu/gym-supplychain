@@ -167,10 +167,10 @@ class BeerGameEnv(gym.Env):
         print('Current delay:\t', self.shipment_delays[self.week])
         print('Inventory costs:\t', self.inventory_costs)
         print('Backlog costs:\t', self.backlog_costs)
-        if (self.week == self.max_weeks):
-            print('All orders placed:')
-            for level in range(self.levels):
-                print(level, self.all_orders_placed[level])
+        #if (self.week == self.max_weeks):
+        #    print('All orders placed:')
+        #    for level in range(self.levels):
+        #        print(level, self.all_orders_placed[level])
 
     def close(self):
         pass
