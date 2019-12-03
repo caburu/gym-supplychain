@@ -11,7 +11,7 @@ class BeerGameEnv(gym.Env):
     def __init__(self, env_init_info={}):
         '''Initial inventory is a list with the initial inventory position for each level
         '''
-
+        self.DEBUG = False
         # Valores padrões do MIT Beer Game (usados se não forem passados outros valores)
         beer_game_std_levels      = 4
         beer_game_std_demands     = [4]*4 + [8]*31
@@ -124,7 +124,7 @@ class BeerGameEnv(gym.Env):
 
         # 6. Tratando agora as questões de Aprendizado (recompensa e próximo estado)
 
-        self.current_state = np.copy(self.inventory)
+        self.current_state = self._observation()
 
         # A recompensa é a soma ponderada dos custos de estoque e backlog
         reward = -np.sum(self.inv_cost*self.inventory + self.backlog_cost*self.backlog)
@@ -132,6 +132,8 @@ class BeerGameEnv(gym.Env):
         self.backlog_costs += self.backlog_cost*self.backlog
 
         is_terminal = self.week == self.max_weeks
+
+        if self.DEBUG: print('env.step()', self.inventory - self.backlog, self.current_state)
 
         return self.current_state, reward, is_terminal, {}
 
@@ -149,7 +151,7 @@ class BeerGameEnv(gym.Env):
         self.all_orders_placed = np.zeros((self.levels,self.max_weeks+1), dtype=int)
         self.all_orders_placed[:,0] = self.initial_orders_value
 
-        self.current_state = np.copy(self.inventory)
+        self.current_state = self._observation()
 
         return self.current_state
 
@@ -174,3 +176,6 @@ class BeerGameEnv(gym.Env):
 
     def close(self):
         pass
+
+    def _observation(self):
+        return self.inventory - self.backlog
