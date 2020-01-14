@@ -12,50 +12,30 @@ class SupplyChainEnv(gym.Env):
         '''Initial inventory is a list with the initial inventory position for each level
         '''
         self.DEBUG = False
-        # Valores padrões do MIT Beer Game (usados se não forem passados outros valores)
-        beer_game_std_levels      = 4
-        beer_game_std_demands     = [4]*4 + [8]*31
-        beer_game_std_inventory   = 12 + np.zeros(beer_game_std_levels)
-        beer_game_std_ship_delay  = 2
-        beer_game_std_ship_value  = 4
-        beer_game_std_orders_value= 4
-        beer_game_std_inv_cost    = 1
-        beer_game_std_backlog_cost= 2
+
+        iib = SupplyChain_InitInfoBuilder(penalization=10)
 
         # Número de níveis da cadeia
-        self.levels       = env_init_info.get('levels', beer_game_std_levels)
+        self.levels       = iib.define_num_levels(env_init_info)
         # Custo por unidade em estoque por semana
-        self.inv_cost     = env_init_info.get('inv_cost', beer_game_std_inv_cost)
+        self.inv_cost     = iib.define_inventory_costs(env_init_info)
         # Custo por unidade em backlog por semana
-        self.backlog_cost = env_init_info.get('backlog_cost', beer_game_std_backlog_cost)
+        self.backlog_cost = iib.define_backlog_costs(self.inv_cost)
 
         # Demanda dos clientes a cada semana
-        self.customer_demand = np.asarray(env_init_info.get('customer_demand', beer_game_std_demands), dtype=int)
+        self.customer_demand = np.asarray(iib.define_customer_demand(env_init_info), dtype=int)
         # Quantidade inicial de estoque em cada nível
-        self.initial_inventory = np.asarray(env_init_info.get('initial_inventory', beer_game_std_inventory), dtype=int)
+        self.initial_inventory = np.asarray(iib.define_initial_inventory(env_init_info), dtype=int)
         # Número de semanas a simular
         self.max_weeks = len(self.customer_demand)
         # Máximo leadtime de entrega
-        self.shipment_delays = np.asarray([beer_game_std_ship_delay] + env_init_info.get('shipment_delays', [beer_game_std_ship_delay]*self.max_weeks))
-        # Valor inicial de ítens em transporte
-        self.initial_shipment_value = env_init_info.get('initial_shipment_value', beer_game_std_ship_value)
-        # Pedidos colocados inicialmente
-        self.initial_orders_value = env_init_info.get('initial_orders_value', beer_game_std_orders_value)
+        self.shipment_delays = np.asarray([2] + iib.define_shipment_delays(env_init_info))
 
         # Estrutura para guardar todas as entregas. Por tempo, por nível.
-        max_shipment_week = self.max_weeks+1
-        for i in range(self.max_weeks+1):
-            if i+self.shipment_delays[i]+1 > max_shipment_week:
-                max_shipment_week = i+self.shipment_delays[i]+1
-        self.initial_shipment = np.zeros((max_shipment_week+1, self.levels), dtype=int)
-        # Tratando as entregas pendentes já no momento inicial
-        self.initial_shipment[1:1+self.shipment_delays[0]][:] = self.initial_shipment_value
+        max_shipment_week = self.max_weeks + max(self.shipment_delays) + 1
+        self.initial_shipment = np.zeros((max_shipment_week, self.levels), dtype=int)
 
-        # Pedidos colocados para o nível acima
-        self.initial_orders_placed = self.initial_orders_value + np.zeros(self.levels, dtype=int)
-        # Pedidos pendentes que chegaram do nível abaixo (posição zero é a demanda do cliente,
-        # e valor colocado aqui é ignorado depois)
-        self.initial_incoming_orders = self.initial_orders_value + np.zeros(self.levels, dtype=int)
+        self.transf_factor = iib.define_transf_factor(env_init_info)
 
         self.current_state = None
 
@@ -89,11 +69,12 @@ class SupplyChainEnv(gym.Env):
         orders_to_deliver = np.minimum(self.inventory, orders_to_fill)
 
         # Já a entrega considera apenas o que realmente pode ser entregue.
-        # Se o tempo de delay é zero, entrega direto nos estoques dos níveis abaixo
-        if self.shipment_delays[self.week] == 0:
-            self.inventory[:-1] += orders_to_deliver[1:] # A primeira posição é para o cliente
-        else: # Se delay é maior que zero, agenda a entrega
-            self.shipments[self.week+self.shipment_delays[self.week]][:-1] += orders_to_deliver[1:]
+        for level in range(self.levels-1):
+            # Se o tempo de delay é zero, entrega direto nos estoques dos níveis abaixo
+            if self.shipment_delays[level] == 0:
+                self.inventory[level] += orders_to_deliver[level+1] # A primeira posição é para o cliente
+            else: # Se delay é maior que zero, agenda a entrega
+                self.shipments[self.week+self.shipment_delays[level]][level] += orders_to_deliver[level+1]
 
         # 3. Record the invetory or backlog
 
@@ -108,17 +89,17 @@ class SupplyChainEnv(gym.Env):
         # Já feito no Passo 2
 
         # Pedidos para a fábrica (último nível) são colocados para entrega
-        if self.shipment_delays[self.week] == 0:
+        if self.shipment_delays[-1] == 0:
             self.inventory[-1] += self.orders_placed[-1]
         else:
-            self.shipments[self.week+self.shipment_delays[self.week]][-1] += self.orders_placed[-1]
+            self.shipments[self.week+self.shipment_delays[-1]][-1] += self.orders_placed[-1]
 
         # 5. Place orders
 
         # Cada nível passa para o nível acima um pedido de tamanho X+Y
         # onde X é o que recebeu de demanda e Y é a quantidade a decidir pelo agente
 
-        self.orders_placed = self.incoming_orders + action
+        self.orders_placed = self.transf_factor*self.incoming_orders + action
 
         self.all_orders_placed[:,self.week] = self.orders_placed.T
 
@@ -141,15 +122,14 @@ class SupplyChainEnv(gym.Env):
         self.week = 0
         self.inventory = np.copy(self.initial_inventory)
         self.backlog = np.zeros(self.levels, dtype=int)
-        self.orders_placed = np.copy(self.initial_orders_placed)
-        self.incoming_orders = np.copy(self.initial_incoming_orders)
+        self.orders_placed = np.zeros(self.levels, dtype=int)
+        self.incoming_orders = np.zeros(self.levels, dtype=int)
         self.shipments = np.copy(self.initial_shipment)
 
-        self.inventory_costs = np.zeros(self.levels, dtype=int)
-        self.backlog_costs = np.zeros(self.levels, dtype=int)
+        self.inventory_costs = np.zeros(self.levels, dtype=float)
+        self.backlog_costs = np.zeros(self.levels, dtype=float)
 
         self.all_orders_placed = np.zeros((self.levels,self.max_weeks+1), dtype=int)
-        self.all_orders_placed[:,0] = self.initial_orders_value
 
         self.current_state = self._observation()
 
@@ -166,7 +146,6 @@ class SupplyChainEnv(gym.Env):
         #print('Print shipments:\n', self.shipments)
         #print('self.shipments[', self.week+1, ':', self.week+self.shipment_delays[self.week]+1, ']')
         print('Next shipments:\t', [(i,list(self.shipments[i])) for i in range(self.week+1, self.week+6) if i < len(self.shipments)])
-        print('Current delay:\t', self.shipment_delays[self.week])
         print('Inventory costs:\t', self.inventory_costs)
         print('Backlog costs:\t', self.backlog_costs)
         #if (self.week == self.max_weeks):
@@ -179,3 +158,106 @@ class SupplyChainEnv(gym.Env):
 
     def _observation(self):
         return self.inventory - self.backlog
+
+
+class SupplyChain_InitInfoBuilder:
+
+    def __init__(self, penalization=10):
+        self.penalization = penalization
+
+    def define_num_levels(self, data):
+        """ São 3 níveis:
+            - A frente/fornecedor:
+              - Com delay=1 para matéria-prima chegar no estoque (por eqto = 0)
+            - A central/fábrica:
+              - Tratando transformação de matéria-prima em produto.
+              - Com delay=2 para produto chegar no estoque.
+            - O ponto de demanda/revendedor:
+              - Com delay=1 para chegar no estoque.
+              - E com altos custos de estoque e backlog para evitar ao máximo que aconteça.
+        """
+        return len(data['chain_settings']['levels'])
+
+    def define_inventory_costs(self, data):
+        """ Os custos de estoque é por nível e o custo de cada nível é dado pela
+            média apenas dos custos de estoque. Exceto o custo do revendedor que
+            é bem mais alto para se penalizar tentanto evitar que ele tenha estoque.
+
+            Não vamos incluir os custos de fabricação e transporte porque eles serão
+            sempre necessários (acontecerão de qualquer jeito para toda unidade
+            de produto necessárias). O que pode ajudar a definir uma solução melhor
+            ou pior é quanto vamos estocar.
+        """
+        suppliers_avg_cost = (sum(data['chain_settings']['costs']['suppliers']['stock'])
+                              / data['chain_settings']['levels']['suppliers'])
+
+        factories_avg_cost = (sum(data['chain_settings']['costs']['factories']['stock'])
+                              / data['chain_settings']['levels']['factories'])
+
+        retailers_avg_cost = self.penalization*(suppliers_avg_cost+factories_avg_cost)
+
+        return np.array([suppliers_avg_cost, factories_avg_cost, retailers_avg_cost], dtype=float)
+
+    def define_backlog_costs(self, inv_costs):
+        """ Backlog na verdade não pode acontecer no nosso cenário da cadeia de
+            suprimentos. Logo, esse custo precisar ser visto como penalização para
+            evitar que ele ocorra.
+
+            É necessário pensar em algum valor inicial e depois realizar experimentos
+            para defini-lo melhor.
+        """
+        return self.penalization*inv_costs
+
+    def define_customer_demand(self, data):
+        """ A ideia original seria aprender a lidar com as variações de demanda
+            que ocorrem depois do plano otimizado.
+
+            Mas a ideia de tentar resolver o problema como uma instância do Beer
+            Game perde essa noção. Pois aprenderia apenas baseado no histórico
+            que já atende a demanda usando a heurística implementada.
+
+            Por enquanto, vai aprender usando apenas a informação da demanda real.
+        """
+        periods = data['chain_settings']['periods']
+        #periods = 30
+        # Por equando vamos simplesmente considerar a demanda real (que pode ter
+        # sofrido variação).
+        real_demand = [0]*periods
+        for i in range(periods):
+            # A demanda real de todos os pontos de demanda
+            real_demand[i] = np.sum(np.asarray(data['periods'][str(i)]['retailers']['actual_demand']))
+
+        return real_demand
+
+    def define_initial_inventory(self, data):
+        """ Quantidade inicial nos estoques de cada nível. Soma os estoques de
+            cada nível."""
+
+        inventory = [0]
+        inventory.append(sum(data['chain_settings']['materials']['initial_stocks']['supp_stocks']))
+        inventory.append(sum(data['chain_settings']['materials']['initial_stocks']['fact_stocks']))
+        return inventory
+
+    def define_shipment_delays(self, data):
+        """ Os delays de entrega no nosso caso não são variáveis no tempo. Eles são
+            fixos, mas diferentes em cada parte da cadeia.
+
+            Nas frentes/fornecedores o delay é 1 (por eqto = 0).
+            Nas centrais/fábricas o delay é 2.
+            Nos revendedores o delay é 1.
+        """
+        return [0,2,1]
+
+    def define_transf_factor(self, data):
+        """ O fator de transformação é usada para a transformação da quantidade
+            de matéria-prima em quantidade de produto.
+
+            Para deixar a implementação mais flexível, usaremos um vetor para
+            tranformação em todos os níveis da cadeia, e deixamos o valor 1 para
+            os níveis da cadeia que não têm transformação.
+        """
+        r2p = data['chain_settings']['materials']['raw_to_product'][0][0]
+
+        print(r2p)
+
+        return np.array([1, r2p, 1])
