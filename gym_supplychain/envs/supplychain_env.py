@@ -9,11 +9,20 @@ class SupplyChainEnv(gym.Env):
     #metadata = {'render.modes': ['human']}
 
     def __init__(self, env_init_info={}):
-        '''Initial inventory is a list with the initial inventory position for each level
+        ''' Inicializa o ambiente com as informações de histórico passadas.
+
+            O ambiente começa a partir da 3ª semana de dados históricos, que é a
+            partir de quando se tem um fluxo de matérias-primas e produtos completo
+            na cadeia.
+
+            São utilizadas as seguintes informações.
+            - Informações de configuração da cadeia.
+            - Demandas de todos os períodos.
+            - Situação do período 3.
         '''
         self.DEBUG = False
 
-        iib = SupplyChain_InitInfoBuilder(penalization=10)
+        iib = SupplyChain_InitInfoBuilder(penalization=10, first_period=3)
 
         # Número de níveis da cadeia
         self.levels       = iib.define_num_levels(env_init_info)
@@ -28,13 +37,20 @@ class SupplyChainEnv(gym.Env):
         self.initial_inventory = np.asarray(iib.define_initial_inventory(env_init_info), dtype=int)
         # Número de semanas a simular
         self.max_weeks = len(self.customer_demand)
-        # Máximo leadtime de entrega
+        # Leadtimes de entrega por nível
         self.shipment_delays = np.asarray(iib.define_shipment_delays(env_init_info))
 
         # Estrutura para guardar todas as entregas. Por tempo, por nível.
         max_shipment_week = self.max_weeks + max(self.shipment_delays) + 1
         self.initial_shipment = np.zeros((max_shipment_week, self.levels), dtype=int)
 
+        # Definição das entregas previstas inicialmente
+        iib.fill_initial_shipments(env_init_info, self.initial_shipment)
+
+        # Definição dos pedidos iniciais
+        self.initial_orders_placed = np.asarray(iib.define_initial_orders(env_init_info, self.initial_shipment), dtype=int)
+
+        # Fator de transformação de materiais em cada nível
         self.transf_factor = iib.define_transf_factor(env_init_info)
 
         self.current_state = None
@@ -122,7 +138,7 @@ class SupplyChainEnv(gym.Env):
         self.week = 0
         self.inventory = np.copy(self.initial_inventory)
         self.backlog = np.zeros(self.levels, dtype=int)
-        self.orders_placed = np.zeros(self.levels, dtype=int)
+        self.orders_placed = np.copy(self.initial_orders_placed)
         self.incoming_orders = np.zeros(self.levels, dtype=int)
         self.shipments = np.copy(self.initial_shipment)
 
@@ -162,24 +178,41 @@ class SupplyChainEnv(gym.Env):
 
 class SupplyChain_InitInfoBuilder:
 
-    def __init__(self, penalization=10):
+    def __init__(self, first_period=0, penalization=10):
+        """ Inicializa o construtor das informações iniciais do ambiente.
+
+            first_period: é o primeiro período do histórico a partir do qual o
+                          ambiente será simulado. Geralmente o período 0 ainda não
+                          tem um fluxo por toda a cadeia que permite um funcionamento
+                          normal a partir daí.
+            penalization: penalização usada para os custos de backlog em geral
+                          e também para o custo de estoque nos revendedores. Isso
+                          porque queremos evitar que aconteça backlog que que exista
+                          estoque no revendedor.
+        """
         self.penalization = penalization
+        self.first_period = first_period
+
+        # Variáveis para deixar o código mais claro
+        self.retailers_level = 0
+        self.factories_level = 1
+        self.suppliers_level = 2
 
     def define_num_levels(self, data):
         """ São 3 níveis:
             - A frente/fornecedor:
-              - Com delay=1 para matéria-prima chegar no estoque (por eqto = 0)
+              - Com delay=1 para matéria-prima chegar no estoque.
             - A central/fábrica:
               - Tratando transformação de matéria-prima em produto.
               - Com delay=2 para produto chegar no estoque.
             - O ponto de demanda/revendedor:
-              - Com delay=1 para chegar no estoque.
+              - Com delay=1 para chegar no estoque. (por eqto = 0)
               - E com altos custos de estoque e backlog para evitar ao máximo que aconteça.
         """
         return len(data['chain_settings']['levels'])
 
     def define_inventory_costs(self, data):
-        """ Os custos de estoque é por nível e o custo de cada nível é dado pela
+        """ Os custos de estoque são por nível e o custo de cada nível é dado pela
             média apenas dos custos de estoque. Exceto o custo do revendedor que
             é bem mais alto para se penalizar tentanto evitar que ele tenha estoque.
 
@@ -218,14 +251,14 @@ class SupplyChain_InitInfoBuilder:
 
             Por enquanto, vai aprender usando apenas a informação da demanda real.
         """
-        periods = data['chain_settings']['periods']
-        #periods = 30
+        periods = data['chain_settings']['periods'] - self.first_period
+
         # Por equando vamos simplesmente considerar a demanda real (que pode ter
         # sofrido variação).
         real_demand = [0]*periods
         for i in range(periods):
             # A demanda real de todos os pontos de demanda
-            real_demand[i] = np.sum(np.asarray(data['periods'][str(i)]['retailers']['actual_demand']))
+            real_demand[i] = np.sum(np.asarray(data['periods'][str(i+self.first_period)]['retailers']['actual_demand']))
 
         return real_demand
 
@@ -234,8 +267,14 @@ class SupplyChain_InitInfoBuilder:
             cada nível."""
 
         inventory = [0]
-        inventory.append(sum(data['chain_settings']['materials']['initial_stocks']['fact_stocks']))
-        inventory.append(sum(data['chain_settings']['materials']['initial_stocks']['supp_stocks']))
+        if self.first_period == 0:
+            inventory.append(sum(data['chain_settings']['materials']['initial_stocks']['fact_stocks']))
+            inventory.append(sum(data['chain_settings']['materials']['initial_stocks']['supp_stocks']))
+        else:
+            per_data = data['periods'][str(self.first_period)]
+            inventory.append(np.sum(per_data['factories']['stocks']))
+            inventory.append(np.sum(per_data['suppliers']['stocks']))
+
         return inventory
 
     def define_shipment_delays(self, data):
@@ -259,3 +298,33 @@ class SupplyChain_InitInfoBuilder:
         r2p = data['chain_settings']['materials']['raw_to_product'][0][0]
 
         return np.array([1, r2p, 1])
+
+    def fill_initial_shipments(self, data, shipments):
+        """ Esse método inicializa as entregas de acordo com os dados do período
+            inicial da simulação.
+        """
+
+        # Obtendo os dados do período inicial
+        per_data = data['periods'][str(self.first_period)]
+
+        # Transporte das frentes para os estoques
+        shipments[1][self.suppliers_level] = np.sum(per_data['suppliers']['to']['stocks'])
+
+        # Transporte dos estoques das frentes para as fábricas
+        shipments[2][self.factories_level] = np.sum(per_data['factories']['from']['stocks'])
+
+        # Transporte das fábricas para os estoques
+        shipments[1][self.factories_level] = np.sum(per_data['factories']['to']['stocks'])
+
+        # Transporte dos estoques das fábricas para os revendedores
+        shipments[1][self.retailers_level] = 0 #np.sum(per_data['retailers']['from']['stocks'])
+
+    def define_initial_orders(self, data, shipments):
+        """
+        """
+
+        second_per_data = data['periods'][str(self.first_period+1)]
+
+        return [shipments[1][self.factories_level],
+                shipments[1][self.suppliers_level],
+                np.sum(second_per_data['suppliers']['raw'])]
