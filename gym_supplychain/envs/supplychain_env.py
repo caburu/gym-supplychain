@@ -264,16 +264,15 @@ class SupplyChain_InitInfoBuilder:
 
     def define_initial_inventory(self, data):
         """ Quantidade inicial nos estoques de cada nível. Soma os estoques de
-            cada nível."""
+            cada nível.
+        """
 
-        inventory = [0]
-        if self.first_period == 0:
-            inventory.append(sum(data['chain_settings']['materials']['initial_stocks']['fact_stocks']))
-            inventory.append(sum(data['chain_settings']['materials']['initial_stocks']['supp_stocks']))
-        else:
-            per_data = data['periods'][str(self.first_period)]
-            inventory.append(np.sum(per_data['factories']['stocks']))
-            inventory.append(np.sum(per_data['suppliers']['stocks']))
+        per_data = data['periods'][str(self.first_period)]
+
+        inventory = []
+        inventory.append(np.sum(per_data['retailers']['fulfilled_demand']))
+        inventory.append(np.sum(per_data['factories']['stocks']))
+        inventory.append(np.sum(per_data['suppliers']['stocks']))
 
         return inventory
 
