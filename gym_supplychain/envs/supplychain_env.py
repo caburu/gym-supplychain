@@ -258,6 +258,4 @@ class SupplyChain_InitInfoBuilder:
         """
         r2p = data['chain_settings']['materials']['raw_to_product'][0][0]
 
-        print(r2p)
-
         return np.array([1, r2p, 1])
