@@ -29,7 +29,7 @@ class SupplyChainEnv(gym.Env):
         # Número de semanas a simular
         self.max_weeks = len(self.customer_demand)
         # Máximo leadtime de entrega
-        self.shipment_delays = np.asarray([2] + iib.define_shipment_delays(env_init_info))
+        self.shipment_delays = np.asarray(iib.define_shipment_delays(env_init_info))
 
         # Estrutura para guardar todas as entregas. Por tempo, por nível.
         max_shipment_week = self.max_weeks + max(self.shipment_delays) + 1
@@ -196,7 +196,7 @@ class SupplyChain_InitInfoBuilder:
 
         retailers_avg_cost = self.penalization*(suppliers_avg_cost+factories_avg_cost)
 
-        return np.array([suppliers_avg_cost, factories_avg_cost, retailers_avg_cost], dtype=float)
+        return np.array([retailers_avg_cost, factories_avg_cost, suppliers_avg_cost], dtype=float)
 
     def define_backlog_costs(self, inv_costs):
         """ Backlog na verdade não pode acontecer no nosso cenário da cadeia de
@@ -234,17 +234,17 @@ class SupplyChain_InitInfoBuilder:
             cada nível."""
 
         inventory = [0]
-        inventory.append(sum(data['chain_settings']['materials']['initial_stocks']['supp_stocks']))
         inventory.append(sum(data['chain_settings']['materials']['initial_stocks']['fact_stocks']))
+        inventory.append(sum(data['chain_settings']['materials']['initial_stocks']['supp_stocks']))
         return inventory
 
     def define_shipment_delays(self, data):
         """ Os delays de entrega no nosso caso não são variáveis no tempo. Eles são
             fixos, mas diferentes em cada parte da cadeia.
 
-            Nas frentes/fornecedores o delay é 1 (por eqto = 0).
+            Nas frentes/fornecedores o delay é 1.
             Nas centrais/fábricas o delay é 2.
-            Nos revendedores o delay é 1.
+            Nos revendedores o delay é 1 (por eqto = 0).
         """
         return [0,2,1]
 
