@@ -22,7 +22,7 @@ class SupplyChainEnv(gym.Env):
         '''
         self.DEBUG = False
 
-        iib = SupplyChain_InitInfoBuilder(penalization=10, first_period=3)
+        iib = SupplyChain_InitInfoBuilder(penalization=10, first_period=4)
 
         # Número de níveis da cadeia
         self.levels       = iib.define_num_levels(env_init_info)
@@ -36,7 +36,7 @@ class SupplyChainEnv(gym.Env):
         # Quantidade inicial de estoque em cada nível
         self.initial_inventory = np.asarray(iib.define_initial_inventory(env_init_info), dtype=int)
         # Número de semanas a simular
-        self.max_weeks = len(self.customer_demand)
+        self.max_weeks = len(self.customer_demand)-1
         # Leadtimes de entrega por nível
         self.shipment_delays = np.asarray(iib.define_shipment_delays(env_init_info))
 
@@ -62,6 +62,10 @@ class SupplyChainEnv(gym.Env):
     def step(self, action):
         self.week += 1
 
+        self.orders_placed += action
+
+        self.all_orders_placed[:,self.week-1] = self.orders_placed.T
+
         # 1. Receive inventory and advance shipment delay
 
         # Os estoques recebem o que estava previsto nas entregas
@@ -72,7 +76,7 @@ class SupplyChainEnv(gym.Env):
         # 2. Fill orders
 
         # Retailer obtém a demanda do cliente
-        self.incoming_orders[0] = self.customer_demand[self.week-1]
+        self.incoming_orders[0] = self.customer_demand[self.week]
         # Demais níveis recebem demanda do nível inferior (# 4. Advance the order slips)
         self.incoming_orders[1:] = self.orders_placed[:-1]
 
@@ -112,12 +116,9 @@ class SupplyChainEnv(gym.Env):
 
         # 5. Place orders
 
-        # Cada nível passa para o nível acima um pedido de tamanho X+Y
-        # onde X é o que recebeu de demanda e Y é a quantidade a decidir pelo agente
+        # Cada nível passa para o nível acima um pedido do tamanho da encomenda que recebeu
 
-        self.orders_placed = self.transf_factor*self.incoming_orders + action
-
-        self.all_orders_placed[:,self.week] = self.orders_placed.T
+        self.orders_placed = self.transf_factor*self.incoming_orders
 
         # 6. Tratando agora as questões de Aprendizado (recompensa e próximo estado)
 
@@ -206,7 +207,7 @@ class SupplyChain_InitInfoBuilder:
               - Tratando transformação de matéria-prima em produto.
               - Com delay=2 para produto chegar no estoque.
             - O ponto de demanda/revendedor:
-              - Com delay=1 para chegar no estoque. (por eqto = 0)
+              - Com delay=1 para chegar no estoque.
               - E com altos custos de estoque e backlog para evitar ao máximo que aconteça.
         """
         return len(data['chain_settings']['levels'])
@@ -270,7 +271,7 @@ class SupplyChain_InitInfoBuilder:
         per_data = data['periods'][str(self.first_period)]
 
         inventory = []
-        inventory.append(np.sum(per_data['retailers']['fulfilled_demand']))
+        inventory.append(0)
         inventory.append(np.sum(per_data['factories']['stocks']))
         inventory.append(np.sum(per_data['suppliers']['stocks']))
 
@@ -282,9 +283,9 @@ class SupplyChain_InitInfoBuilder:
 
             Nas frentes/fornecedores o delay é 1.
             Nas centrais/fábricas o delay é 2.
-            Nos revendedores o delay é 1 (por eqto = 0).
+            Nos revendedores o delay é 1.
         """
-        return [0,2,1]
+        return [1,2,1]
 
     def define_transf_factor(self, data):
         """ O fator de transformação é usada para a transformação da quantidade
@@ -316,7 +317,7 @@ class SupplyChain_InitInfoBuilder:
         shipments[1][self.factories_level] = np.sum(per_data['factories']['to']['stocks'])
 
         # Transporte dos estoques das fábricas para os revendedores
-        shipments[1][self.retailers_level] = 0 #np.sum(per_data['retailers']['from']['stocks'])
+        shipments[1][self.retailers_level] = np.sum(per_data['retailers']['from']['stocks'])
 
     def define_initial_orders(self, data, shipments):
         """
