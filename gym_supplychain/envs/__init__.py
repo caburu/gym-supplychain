@@ -1,2 +1,3 @@
 from gym_supplychain.envs.beergame_env import BeerGameEnv
+from gym_supplychain.envs.beergame2_env import BeerGameEnv2
 from gym_supplychain.envs.supplychain_env import SupplyChainEnv
