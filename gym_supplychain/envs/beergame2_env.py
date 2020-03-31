@@ -36,7 +36,7 @@ class BeerGameEnv2(gym.Env):
             self.customer_demand = np.asarray(env_init_info.get('customer_demand', beer_game_std_demands), dtype=int)
         else:
             self.stochastic_demand_range = env_init_info.get('customer_demand')
-            np.random.seed(env_init_info.get('seed'))
+            self.rand_generator = np.random.RandomState(env_init_info.get('seed'))
 
         # Quantidade de semanas a simular (tamanho do episódio)
         self.max_weeks    = env_init_info.get('episode_size', beer_game_std_weeks)
@@ -82,7 +82,7 @@ class BeerGameEnv2(gym.Env):
         self.current_state = None
 
     def _generate_stochastic_demand(self, arange, asize):
-        return np.random.randint(low=arange[0], high=arange[1], size=asize)
+        return self.rand_generator.randint(low=arange[0], high=arange[1], size=asize)
 
     def reset(self):
         self.week = 0
@@ -205,3 +205,6 @@ class BeerGameEnv2(gym.Env):
         print('Inventory costs:', self.inventory_costs)
         print('Backlog costs:\t', self.backlog_costs)
         print('Penalty costs:\t', self.penalty_costs)
+
+    def seed(self, seed=None):
+        self.rand_generator = np.random.RandomState(seed)
