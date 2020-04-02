@@ -7,47 +7,54 @@ class BeerGameEnv2(gym.Env):
         https://github.com/caburu/RL-agents/blob/master/stable-baselines/Ambiente%20BeerGame.ipynb
     """
 
-    def _init_parameters(self, env_init_info={}):
-        # Valores padrões do MIT Beer Game (usados se não forem passados outros valores)
-        beer_game_std_levels      = 4
-        beer_game_std_weeks       = 35
-        beer_game_std_demands     = [4]*4 + [8]*31
-        beer_game_std_inventory   = 12 + np.zeros(beer_game_std_levels)
-        beer_game_std_ship_delay  = 2
-        beer_game_std_ship_value  = 4
-        beer_game_std_orders_value= 4
-        beer_game_std_inv_cost    = 0.01
-        beer_game_std_backlog_cost= 0.02
-        exceeded_capacity_penalty = 1.00
-
-        self.stochastic_demand_range = None
+    def __init__(self, max_stock=100, max_order=30, weeks=35, levels=4,
+                    customer_demand=[4]*4 + [8]*31, initial_inventory=[12,12,12,12],
+                    inv_cost=1, backlog_cost=2, exceeded_capacity_penalty=100,
+                    shipment_delays=2, initial_shipment=4, initial_orders=4,
+                    seed=None):
+        ''' Build the environment. The default parameters values are from standard beer game
+            (except exceeded_capacity_penalty, max_stock and max_order).
+        '''
+        # Flag para informações de depuração
+        self.DEBUG = False
 
         # Número de níveis da cadeia
-        self.levels       = env_init_info.get('levels', beer_game_std_levels)
-        # Custo por unidade em estoque por semana
-        self.inv_cost     = env_init_info.get('inv_cost', beer_game_std_inv_cost)
-        # Custo por unidade em backlog por semana
-        self.backlog_cost = env_init_info.get('backlog_cost', beer_game_std_backlog_cost)
-        # Custo de penalização por unidade de produto em estoque ou backlog além da capacidade
-        self.exceeded_capacity_penalty = env_init_info.get('exceeded_capacity_penalty', exceeded_capacity_penalty)
+        self.levels    = levels
+        # Capacidade dos estoques
+        self.max_stock = max_stock
 
-        # Demanda dos clientes a cada semana e número de semanas a simular
-        if not isinstance(env_init_info.get('customer_demand'), tuple):
-            self.customer_demand = np.asarray(env_init_info.get('customer_demand', beer_game_std_demands), dtype=int)
+        # Definição dos espaços de ações e de estados
+        self.action_space      = spaces.MultiDiscrete(self.levels * [max_order])
+        self.observation_space = spaces.MultiDiscrete(self.levels * [2*self.max_stock])
+
+        # Custo por unidade em estoque por semana
+        self.inv_cost     = inv_cost
+        # Custo por unidade em backlog por semana
+        self.backlog_cost = backlog_cost
+        # Custo de penalização por unidade de produto em estoque ou backlog além da capacidade
+        self.exceeded_capacity_penalty = exceeded_capacity_penalty
+
+        # Demanda dos clientes a cada semana
+        if isinstance(customer_demand, tuple) or (isinstance(customer_demand, list) and len(customer_demand)==2):
+            self.stochastic_demand_range = customer_demand
+            self.rand_generator = np.random.RandomState(seed)
         else:
-            self.stochastic_demand_range = env_init_info.get('customer_demand')
-            self.rand_generator = np.random.RandomState(env_init_info.get('seed'))
+            self.stochastic_demand_range = None
+            self.customer_demand = np.asarray(customer_demand, dtype=int)
 
         # Quantidade de semanas a simular (tamanho do episódio)
-        self.max_weeks    = env_init_info.get('episode_size', beer_game_std_weeks)
+        self.max_weeks         = weeks
         # Quantidade inicial de estoque em cada nível
-        self.initial_inventory = np.asarray(env_init_info.get('initial_inventory', beer_game_std_inventory), dtype=int)
+        self.initial_inventory = np.asarray(initial_inventory, dtype=int)
         # Máximo leadtime de entrega
-        self.shipment_delays = np.asarray([beer_game_std_ship_delay] + env_init_info.get('shipment_delays', [beer_game_std_ship_delay]*self.max_weeks))
-        # Valor inicial de ítens em transporte
-        self.initial_shipment_value = env_init_info.get('initial_shipment_value', beer_game_std_ship_value)
+        if isinstance(shipment_delays, int):
+            self.shipment_delays   = np.asarray([2] + self.max_weeks*[shipment_delays], dtype=int)
+        else:
+            self.shipment_delays   = np.asarray([2] + shipment_delays, dtype=int)
+        # Valor inicial de itens em transporte
+        self.initial_shipment_value = initial_shipment
         # Pedidos colocados inicialmente
-        self.initial_orders_value = env_init_info.get('initial_orders_value', beer_game_std_orders_value)
+        self.initial_orders_value   = initial_orders
 
         # Estrutura para guardar todas as entregas. Por tempo, por nível.
         max_shipment_week = self.max_weeks+1
@@ -63,20 +70,6 @@ class BeerGameEnv2(gym.Env):
         # Pedidos pendentes que chegaram do nível abaixo (posição zero é a demanda do cliente,
         # e valor colocado aqui é ignorado depois)
         self.initial_incoming_orders = self.initial_orders_value + np.zeros(self.levels, dtype=int)
-
-    def __init__(self, env_init_info={}):
-        '''Initial inventory is a list with the initial inventory position for each level
-        '''
-        # Flag para informações de depuração
-        self.DEBUG = False
-
-        # Inicialização dos parâmetros do ambiente
-        self._init_parameters(env_init_info)
-
-        # Definição dos espaços de ações e de estados
-        self.max_stock = env_init_info['max_stock']
-        self.action_space = spaces.MultiDiscrete(self.levels * [env_init_info['max_order']])
-        self.observation_space = spaces.MultiDiscrete(self.levels * [2*self.max_stock])
 
         # Definindo variável de estado atual
         self.current_state = None
@@ -164,7 +157,7 @@ class BeerGameEnv2(gym.Env):
 
         # Cada nível passa para o nível acima um pedido igual ao valor da ação
 
-        self.orders_placed = action
+        self.orders_placed = np.array(action)
 
         self.all_orders_placed[:,self.week] = self.orders_placed.T
 
