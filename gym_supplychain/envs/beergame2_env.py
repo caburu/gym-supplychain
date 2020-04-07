@@ -179,7 +179,7 @@ class BeerGameEnv2(gym.Env):
 
         #if is_terminal: print(round(np.sum(self.inventory_costs),2), round(np.sum(self.backlog_costs),2), round(np.sum(self.penalty_costs),2), '=', round(np.sum(self.inventory_costs+self.backlog_costs+self.penalty_costs),2))
 
-        if self.DEBUG: print('env.step()', self.inventory - self.backlog, self.current_state)
+        if self.DEBUG: print('env.step()', self.inventory - self.backlog, self.current_state, reward.item())
 
         return (self.current_state, reward.item(), is_terminal, {})
 
