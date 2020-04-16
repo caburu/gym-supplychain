@@ -193,7 +193,7 @@ class SC_Node:
             return obs
         else:
             ship_idx = -1
-            for time_step in shipments_range:
+            for time_step in range(shipments_range[0], shipments_range[1]+1):
                 obs.append(0)
                 while ship_idx >= -len(self.shipments) and self.shipments[ship_idx][0] == time_step:
                     obs[-1] += self.shipments[ship_idx][1]
@@ -357,8 +357,7 @@ if __name__ == '__main__':
         _, _, done, _ = env.step(action)
         env.render()
 
-# TODO: não está usando a capacidade de estoque e, portanto, também não está penalizando por isso
-
+# TODO: recompensa deveria ter sinalização positiva por atender à demanda?
 # TODO: tratar fábricas (transformação de matéria-prima em produto)
 
 # TODO: representação de estados do SHIP está sendo dada como porcentagem da capacidade do estoque. Mas:
