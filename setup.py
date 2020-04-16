@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='gym_supplychain',
-      version='0.0.3',
+      version='0.0.4',
       install_requires=['gym','numpy'],
 
       # metadata to display on PyPI
