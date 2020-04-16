@@ -92,7 +92,7 @@ class SC_Node:
         - Uma fila de material para chegar.
     """
     def __init__(self, label, initial_stock=0, stock_capacity=0, supply_capacity=0, last_level=False,
-                 stock_cost=0.0, supply_cost=0.0):
+                 stock_cost=0.0, supply_cost=0.0, exceeded_capacity_cost=1.0):
         self.label = label
         self.supply_action = None
         self.ship_action = None
@@ -102,7 +102,9 @@ class SC_Node:
             self.num_actions += 1
         self.last_level = last_level
         self.initial_stock = initial_stock
+        self.stock_capacity = stock_capacity
         self.stock_cost = stock_cost
+        self.exceeded_capacity_cost = exceeded_capacity_cost
         self.dest = None
         self.shipments = deque()
 
@@ -118,8 +120,11 @@ class SC_Node:
         while self.shipments and  self.shipments[-1][0] == time_step:
             ship = self.shipments.pop()
             self.stock += ship[1]
+            if self.stock > self.stock_capacity:
+                total_cost = exceeded_capacity_cost*(self.stock - self.stock_capacity)
+                self.stock = self.capacity
 
-        debug = ''
+        #debug = ''
         next_action_idx = 0
         # O próximo passo é executar as ações referentes ao nó da cadeia
         if self.supply_action:
@@ -127,7 +132,7 @@ class SC_Node:
             next_action_idx += 1
             if amount > 0:
                 self.shipments.appendleft((time_step+leadtime, amount))
-            debug += str(amount)+'='+str(cost)+' + '
+            #debug += str(amount)+'='+str(cost)+' + '
             total_cost += cost
 
         if self.ship_action:
@@ -136,11 +141,11 @@ class SC_Node:
             for i in range(len(self.dests)):
                 if amounts[i] > 0:
                     self.dests[i]._ship_material(time_step+leadtime, amounts[i])
-            debug += str(sum(amounts))+'='+str(sum(costs))+' + '
+            #debug += str(sum(amounts))+'='+str(sum(costs))+' + '
             total_cost += sum(costs)
 
         total_cost += self.stock*self.stock_cost
-        debug += str(self.stock)+'='+str(self.stock*self.stock_cost)+' + '
+        #debug += str(self.stock)+'='+str(self.stock*self.stock_cost)+' + '
         #print('CUSTO', self.label, debug)
 
         return total_cost
@@ -167,15 +172,20 @@ class SC_Node:
     def render(self):
         print(self.__str__(), end='')
 
-    def is_last_level():
+    def is_last_level(self):
         return self.last_level
 
     def build_observation(self, shipments_range):
         """ Observação é [estoque, ship1, ship2, ...]
             Onde ship1 é a soma dos carregamentos que chegam no próximo período,
             ship2 no período seguinte, e assim por diante.
+
+            Os valores são normalizados, ou seja, o valor de estoque é a porcentagem
+            da capacidade do estoque.
+            Os valores dos carregamentos, por enquanto, serão dados também como porcentagem
+            da capacidade do estoque, assumindo como esse o limite superior para transporte.
         """
-        obs = [self.stock]
+        obs = [self.stock/self.stock_capacity]
 
         # Se não tem nenhum carregamento pra chegar
         if not self.shipments:
@@ -188,6 +198,7 @@ class SC_Node:
                 while ship_idx >= -len(self.shipments) and self.shipments[ship_idx][0] == time_step:
                     obs[-1] += self.shipments[ship_idx][1]
                     ship_idx -= 1
+                obs[-1] /= self.stock_capacity
             return obs
 
     def __repr__(self):
@@ -204,38 +215,34 @@ class SupplyChainEnv(gym.Env):
     """ OpenAI Gym Environment for Supply Chain Environments
     """
     #metadata = {'render.modes': ['human']}
-    def __init__(self, nodes={}, demand_range=(0,10), leadtime=1, unmet_demand_cost=1.0, total_time_steps=100, seed=None):
-        # TODO: definir valores iniciais de estoque
-        # Estrutura a receber de entrada
-        #   nodes={
-        #     'Supplier 1': {
-        #       'label':,
-        #       'initial_stock':20,
-        #       'stock_capacity':1000,
-        #       'supply_capacity':0,
-        #       'last_level':False,
-        #       'stock_cost':0.01,
-        #       'supply_cost':0.0,
-        #       'destinations':['Factory 1', 'Factory 2'],
-        #       'dest_costs': [0.03, 0.03]
-        #     }
-        #   }
-        sup1 = SC_Node('Supplier 1', initial_stock=20, stock_capacity=1000, stock_cost=0.01, supply_capacity=100, supply_cost=0.05)
-        sup2 = SC_Node('Supplier 2', initial_stock=0, stock_capacity=1000, stock_cost=0.01, supply_capacity=100, supply_cost=0.05)
-        fac1 = SC_Node('Factory  1', initial_stock=20, stock_capacity=1000, stock_cost=0.01)
-        fac2 = SC_Node('Factory  2', initial_stock=0, stock_capacity=1000, stock_cost=0.01)
-        who1 = SC_Node('Wholesal 1', initial_stock=20, stock_capacity=1000, stock_cost=0.01)
-        who2 = SC_Node('Wholesal 2', initial_stock=0, stock_capacity=1000, stock_cost=0.01)
-        ret1 = SC_Node('Retailer 1', initial_stock=10, stock_capacity=1000, stock_cost=0.01, last_level=True)
-        ret2 = SC_Node('Retailer 2', initial_stock=20, stock_capacity=1000, stock_cost=0.01, last_level=True)
-        sup1.define_destinations([fac1, fac2], [0.02, 0.02])
-        sup2.define_destinations([fac1, fac2], [0.02, 0.02])
-        fac1.define_destinations([who1, who2], [0.02, 0.02])
-        fac2.define_destinations([who1, who2], [0.02, 0.02])
-        who1.define_destinations([ret1, ret2], [0.02, 0.02])
-        who2.define_destinations([ret1, ret2], [0.02, 0.02])
-        self.nodes = [sup1, sup2, fac1, fac2, who1, who2, ret1, ret2]
-        self.last_level_nodes = [ret1, ret2]
+    def __init__(self, nodes_info, unmet_demand_cost=1.0, exceeded_capacity_cost=1.0, demand_range=(0,10), leadtime=1, total_time_steps=100, seed=None):
+        def create_nodes(nodes_info):
+            nodes_dict = {}
+            self.nodes = []
+            self.last_level_nodes = []
+            for node_name in nodes_info:
+                node_info = nodes_info[node_name]
+                node = SC_Node(node_name,
+                               initial_stock=node_info.get('initial_stock', 0),
+                               stock_capacity=node_info.get('stock_capacity', float('inf')),
+                               supply_capacity=node_info.get('supply_capacity', 0),
+                               last_level=node_info.get('last_level', False),
+                               stock_cost=node_info.get('stock_cost', 0.0),
+                               supply_cost=node_info.get('supply_cost', 0.0),
+                               exceeded_capacity_cost=exceeded_capacity_cost)
+                nodes_dict[node_name] = node
+                self.nodes.append(node)
+                if node.is_last_level():
+                    self.last_level_nodes.append(node)
+
+            for node_name in nodes_info:
+                node_info = nodes_info[node_name]
+                node = nodes_dict[node_name]
+                if 'destinations' in node_info:
+                    node.define_destinations([nodes_dict[dest_name] for dest_name in node_info['destinations']],
+                                             node_info['dest_costs'])
+
+        create_nodes(nodes_info)
         self.total_time_steps = total_time_steps
         self.leadtime = leadtime
         self.rand_generator = np.random.RandomState(seed)
@@ -247,8 +254,13 @@ class SupplyChainEnv(gym.Env):
         for node in self.nodes:
             action_space_size += node.num_expected_actions()
         obs_space_size = len(self.nodes)*(1+leadtime)
-        self.action_space      = spaces.Box(low=0.0, high=1.0, shape=(action_space_size,))
+
+        # O action_space é tratado como de [0,1] aqui então quando a ação é recebida o valor
+        # é desnormalizado
+        self.action_space      = spaces.Box(low=-1.0, high=1.0, shape=(action_space_size,))
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(obs_space_size,))
+
+        self.current_state = None
 
     def reset(self):
         for node in self.nodes:
@@ -262,6 +274,8 @@ class SupplyChainEnv(gym.Env):
         return self.current_state
 
     def step(self, action):
+        action = self._denormalize_action(action)
+
         self.time_step += 1
         self.customer_demands = self.rand_generator.randint(low=self.demand_range[0],
                              high=self.demand_range[1], size=len(self.last_level_nodes))
@@ -290,7 +304,10 @@ class SupplyChainEnv(gym.Env):
         obs = []
         for node in self.nodes:
             obs += node.build_observation((self.time_step+1, self.time_step+self.leadtime))
-        return obs
+        return np.array(obs)
+
+    def _denormalize_action(self, action):
+        return (action+1)/2
 
     def render(self, mode='human'):
         print('TIMESTEP:', self.time_step)
@@ -306,7 +323,32 @@ class SupplyChainEnv(gym.Env):
         self.rand_generator = np.random.RandomState(seed)
 
 if __name__ == '__main__':
-    env = SupplyChainEnv(total_time_steps=5, leadtime=2 )
+    stock_capacity  = 1000
+    supply_capacity = 20
+    stock_cost  = 0.001
+    supply_cost = 0.005
+    dest_cost   = 0.002
+    nodes_info = {}
+    nodes_info['Supplier 1'] = {'initial_stock':10, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
+                                'supply_capacity':supply_capacity, 'supply_cost':supply_cost,
+                                'destinations':['Factory  1', 'Factory  2'], 'dest_costs':[dest_cost]*2}
+    nodes_info['Supplier 2'] = {'initial_stock':0, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
+                                'supply_capacity':supply_capacity, 'supply_cost':supply_cost,
+                                'destinations':['Factory  1', 'Factory  2'], 'dest_costs':[dest_cost]*2}
+    nodes_info['Factory  1'] = {'initial_stock':0, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
+                                'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[dest_cost]*2}
+    nodes_info['Factory  2'] = {'initial_stock':0, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
+                                'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[dest_cost]*2}
+    nodes_info['Wholesal 1'] = {'initial_stock':10, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
+                                'destinations':['Retailer 1', 'Retailer 2'], 'dest_costs':[dest_cost]*2}
+    nodes_info['Wholesal 2'] = {'initial_stock':15, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
+                                'destinations':['Retailer 1', 'Retailer 2'], 'dest_costs':[dest_cost]*2}
+    nodes_info['Retailer 1'] = {'initial_stock':10, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
+                                'last_level':True}
+    nodes_info['Retailer 2'] = {'initial_stock':20, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
+                                'last_level':True}
+
+    env = SupplyChainEnv(nodes_info, unmet_demand_cost=0.1, exceeded_capacity_cost=1.0, total_time_steps=5, leadtime=2)
     env.reset()
     env.render()
     done = False
@@ -315,10 +357,18 @@ if __name__ == '__main__':
         _, _, done, _ = env.step(action)
         env.render()
 
-# TODO: tratar parametrização do ambiente
+# TODO: não está usando a capacidade de estoque e, portanto, também não está penalizando por isso
+
 # TODO: tratar fábricas (transformação de matéria-prima em produto)
-#
+
+# TODO: representação de estados do SHIP está sendo dada como porcentagem da capacidade do estoque. Mas:
+#       1. O ideal seria ter capacidade específica de transporte.
+#          -> O problema é que a definição de quanto enviar de um nó para um destino seria limitado por esse valor.
+#             E com isso seria necessário mudar a representação da ação SHIP, uma vez que poderia ser sorteado um
+#             valor maior que o limite.
+#       2. O valor de estoque não é um limite superior, porque pode chegar material de vários lugares, cada um mandando
+#          até a capacidade de estoque.
 # TODO: representação de ações SHIP é muito desbalanceada (Isso é um problema?)
 #       Para mandar a mesma quantidade de material para todos os destinos os valores das ações são muito díspares.
-#
+
 # TODO: se for usar leadtimes variáveis tem que repensar representação do estado
