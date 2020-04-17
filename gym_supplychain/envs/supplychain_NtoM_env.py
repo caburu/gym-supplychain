@@ -49,12 +49,11 @@ if __name__ == '__main__':
     leadtime = 2
     total_time_steps = 5
 
-    # env = SupplyChainNtoMEnv(num_suppliers=num_suppliers, num_retailers=num_retailers,
-    #          initial_stocks=initial_stocks, supply_capacity=supply_capacity, stock_capacity=stock_capacity,
-    #          stock_cost=stock_cost, supply_cost=supply_cost, dest_cost=dest_cost,
-    #          unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
-    #          demand_range=demand_range, leadtime=leadtime, total_time_steps=total_time_steps)
-    env = SupplyChainNtoMEnv()
+    env = SupplyChainNtoMEnv(num_suppliers=num_suppliers, num_retailers=num_retailers,
+             initial_stocks=initial_stocks, supply_capacity=supply_capacity, stock_capacity=stock_capacity,
+             stock_cost=stock_cost, supply_cost=supply_cost, dest_cost=dest_cost,
+             unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
+             demand_range=demand_range, leadtime=leadtime, total_time_steps=total_time_steps)
     env.reset()
     env.render()
     done = False
