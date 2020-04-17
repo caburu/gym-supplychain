@@ -10,7 +10,7 @@ class SupplyChainNtoMEnv(SupplyChainEnv):
     def __init__(self, num_suppliers=1, num_retailers=3, initial_stocks=[], supply_capacity=20, stock_capacity=1000,
                  stock_cost=0.001, supply_cost=0.005, dest_cost=0.002,
                  unmet_demand_cost=1.0, exceeded_capacity_cost=1.0,
-                 demand_range=(0,10), leadtime=1, total_time_steps=100, seed=None):
+                 demand_range=(0,10), leadtime=1, total_time_steps=1000, seed=None):
 
         if not initial_stocks: # A posição zero é do fornecedor, as demais dos varejistas
             initial_stocks = [0]*(num_suppliers+num_retailers)

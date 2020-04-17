@@ -215,7 +215,8 @@ class SupplyChainEnv(gym.Env):
     """ OpenAI Gym Environment for Supply Chain Environments
     """
     #metadata = {'render.modes': ['human']}
-    def __init__(self, nodes_info, unmet_demand_cost=1.0, exceeded_capacity_cost=1.0, demand_range=(0,10), leadtime=1, total_time_steps=100, seed=None):
+    def __init__(self, nodes_info, unmet_demand_cost=1.0, exceeded_capacity_cost=1.0,
+                 demand_range=(0,10), leadtime=1, total_time_steps=1000, seed=None):
         def create_nodes(nodes_info):
             nodes_dict = {}
             self.nodes = []
