@@ -1,4 +1,4 @@
-from supplychain_env import SupplyChainEnv
+from gym_supplychain.envs.supplychain_env import SupplyChainEnv
 
 class SupplyChainOneOneNEnv(SupplyChainEnv):
     """ Cria uma Cadeia de Suprimentos com 1 Fornecedor, 1 Fábrica e N Varejistas (revendedores)

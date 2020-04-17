@@ -357,7 +357,6 @@ if __name__ == '__main__':
         _, _, done, _ = env.step(action)
         env.render()
 
-# TODO: corrigir import das subclasses para funcionar pelo pacote gym
 # TODO: recompensa deveria ter sinalização positiva por atender à demanda?
 # TODO: tratar fábricas (transformação de matéria-prima em produto)
 
