@@ -121,8 +121,8 @@ class SC_Node:
             ship = self.shipments.pop()
             self.stock += ship[1]
             if self.stock > self.stock_capacity:
-                total_cost = exceeded_capacity_cost*(self.stock - self.stock_capacity)
-                self.stock = self.capacity
+                total_cost = self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
+                self.stock = self.stock_capacity
 
         #debug = ''
         next_action_idx = 0
