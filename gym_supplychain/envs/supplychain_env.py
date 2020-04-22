@@ -358,6 +358,7 @@ if __name__ == '__main__':
         _, _, done, _ = env.step(action)
         env.render()
 
+# TODO: estado deve informar a demanda do cliente no período seguinte - nem está informando a demanda no momento :( :( :(
 # TODO: recompensa deveria ter sinalização positiva por atender à demanda?
 # TODO: tratar fábricas (transformação de matéria-prima em produto)
 
