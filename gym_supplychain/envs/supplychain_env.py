@@ -360,17 +360,6 @@ if __name__ == '__main__':
 
 # TODO: conferir se não está mandando ações para os revendedores.
 # TODO: estado deve informar a demanda do cliente no período seguinte - nem está informando a demanda no momento :( :( :(
-# TODO: recompensa deveria ter sinalização positiva por atender à demanda?
-# TODO: tratar fábricas (transformação de matéria-prima em produto)
+# TODO: tratar fábricas (transformação de matéria-prima em produto), incluindo custos
+# TODO: normalizar ações (usando wrapper)
 
-# TODO: representação de estados do SHIP está sendo dada como porcentagem da capacidade do estoque. Mas:
-#       1. O ideal seria ter capacidade específica de transporte.
-#          -> O problema é que a definição de quanto enviar de um nó para um destino seria limitado por esse valor.
-#             E com isso seria necessário mudar a representação da ação SHIP, uma vez que poderia ser sorteado um
-#             valor maior que o limite.
-#       2. O valor de estoque não é um limite superior, porque pode chegar material de vários lugares, cada um mandando
-#          até a capacidade de estoque.
-# TODO: representação de ações SHIP é muito desbalanceada (Isso é um problema?)
-#       Para mandar a mesma quantidade de material para todos os destinos os valores das ações são muito díspares.
-
-# TODO: se for usar leadtimes variáveis tem que repensar representação do estado
