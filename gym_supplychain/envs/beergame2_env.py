@@ -33,37 +33,36 @@ class BeerGameEnv2(gym.Env):
         self.backlog_cost = backlog_cost
         # Custo de penalização por unidade de produto em estoque ou backlog além da capacidade
         self.exceeded_capacity_penalty = exceeded_capacity_penalty
+        
+        # Quantidade de semanas a simular (tamanho do episódio)
+        self.max_weeks = weeks
 
         # Demanda dos clientes a cada semana
         if isinstance(customer_demand, tuple) or (isinstance(customer_demand, list) and len(customer_demand)==2):
-            self.stochastic_demand_range = customer_demand
-            self.rand_generator = np.random.RandomState(seed)
+            self.stochastic_demand_range = customer_demand            
         else:
             self.stochastic_demand_range = None
             self.customer_demand = np.asarray(customer_demand, dtype=int)
+        
+        # Leadtimes de entrega
+        self.stochastic_shipdelays_range = None
+        if isinstance(shipment_delays, int):
+            self.shipment_delays = np.asarray([2] + self.max_weeks*[shipment_delays], dtype=int)
+        elif isinstance(shipment_delays, tuple) or (isinstance(shipment_delays, list) and len(shipment_delays)==2):
+            self.stochastic_shipdelays_range = shipment_delays            
+            self.shipment_delays = None
+        else:
+            self.shipment_delays = np.asarray([2] + shipment_delays, dtype=int)
 
-        # Quantidade de semanas a simular (tamanho do episódio)
-        self.max_weeks         = weeks
+        if self.stochastic_demand_range or self.stochastic_shipdelays_range:
+            self.rand_generator = np.random.RandomState(seed)
+        
         # Quantidade inicial de estoque em cada nível
         self.initial_inventory = np.asarray(initial_inventory, dtype=int)
-        # Máximo leadtime de entrega
-        if isinstance(shipment_delays, int):
-            self.shipment_delays   = np.asarray([2] + self.max_weeks*[shipment_delays], dtype=int)
-        else:
-            self.shipment_delays   = np.asarray([2] + shipment_delays, dtype=int)
         # Valor inicial de itens em transporte
         self.initial_shipment_value = initial_shipment
         # Pedidos colocados inicialmente
-        self.initial_orders_value   = initial_orders
-
-        # Estrutura para guardar todas as entregas. Por tempo, por nível.
-        max_shipment_week = self.max_weeks+1
-        for i in range(self.max_weeks+1):
-            if i+self.shipment_delays[i]+1 > max_shipment_week:
-                max_shipment_week = i+self.shipment_delays[i]+1
-        self.initial_shipment = np.zeros((max_shipment_week+1, self.levels), dtype=int)
-        # Tratando as entregas pendentes já no momento inicial
-        self.initial_shipment[1:1+self.shipment_delays[0]][:] = self.initial_shipment_value
+        self.initial_orders_value   = initial_orders    
 
         # Pedidos colocados para o nível acima
         self.initial_orders_placed = self.initial_orders_value + np.zeros(self.levels, dtype=int)
@@ -74,7 +73,7 @@ class BeerGameEnv2(gym.Env):
         # Definindo variável de estado atual
         self.current_state = None
 
-    def _generate_stochastic_demand(self, arange, asize):
+    def _generate_stochastic_data(self, arange, asize):
         return self.rand_generator.randint(low=arange[0], high=arange[1], size=asize)
 
     def reset(self):
@@ -83,11 +82,20 @@ class BeerGameEnv2(gym.Env):
         self.backlog = np.zeros(self.levels, dtype=int)
         self.orders_placed = np.copy(self.initial_orders_placed)
         self.incoming_orders = np.copy(self.initial_incoming_orders)
-        self.shipments = np.copy(self.initial_shipment)
 
         # Se a demanda é estocástica
         if self.stochastic_demand_range:
-            self.customer_demand = self._generate_stochastic_demand(self.stochastic_demand_range, self.max_weeks)
+            self.customer_demand = self._generate_stochastic_data(self.stochastic_demand_range, self.max_weeks)
+        # Se os leadtimes são estocásticos
+        if self.stochastic_shipdelays_range:
+            self.shipment_delays = self._generate_stochastic_data(self.stochastic_shipdelays_range, self.max_weeks)
+            self.shipment_delays = np.insert(self.shipment_delays, 0, 2)
+        
+        # Estrutura para guardar todas as entregas. Por tempo, por nível.
+        max_shipment_week = self.max_weeks+np.max(self.shipment_delays)+1
+        self.shipments = np.zeros((max_shipment_week+1, self.levels), dtype=int)
+        # Tratando as entregas pendentes já no momento inicial
+        self.shipments[1:1+self.shipment_delays[0]][:] = self.initial_shipment_value
 
         self.inventory_costs = np.zeros(self.levels, dtype=float)
         self.backlog_costs = np.zeros(self.levels, dtype=float)
