@@ -48,27 +48,43 @@ class SC_Action:
             supplied_amount = round(action_values*limit)
             return supplied_amount, supplied_amount*self.costs
         elif self.action_type == 'SHIP':
-            # As ações de envio de material são a porcentagem do estoque a ser
-            # enviada para aquele destino, atendendo um por vez. Exemplo: se
-            # para o primeiro destino o valor for 0.8, então 80% do que tiver no
-            # estoque é enviado para aquele destino; se para o segundo destino o
-            # valor for 0.3, então 30% do que sobrou no estoque é enviado para
-            # aquele destino, e assim, sucessivamente. O que sobrar de material
-            # fica estocado.
-            # Obs.: lembrando que é necessário tratar arredondamentos.
+            
+            # Definindo a quantidade máxima de material disponível para envio
             if self.capacity is None:
                 limit = max
             else:
                 limit = min(self.capacity, max)
-            returns = []
-            costs = []
-            for i in range(len(action_values)):
-                rounded_amount = round(action_values[i]*limit)
-                if rounded_amount > limit:
-                    rounded_amount = limit
-                returns.append(rounded_amount)
-                costs.append(rounded_amount*self.costs[i])
-                limit -= rounded_amount
+            available = limit
+                        
+            # Inicializando listas a serem retornadas (quantidades e custos)
+            returns = [0]*len(action_values)
+            costs = [0]*len(action_values)
+                
+            # Se tem material para ser enviado
+            if available > 0:
+                # formando tuplas com os valores das ações e o índice do destino
+                tuples = [(action_values[i], i) for i in range(len(action_values))]
+                # ordenando as tuplas pelos valores das ações
+                tuples.sort()
+                
+                # o primeiro corte será de zero até o primeiro valor
+                initial_cut = 0
+                # Para cada valor e destino
+                for value, idx in tuples:
+                    # o corte vai até o valor da ação desse destino
+                    final_cut = value 
+                    # precisamos arredondar a quantidade de material pois ela é inteira
+                    rounded_amount = round((final_cut-initial_cut)*limit)
+                    # tratamento para evitar problemas de arredondamento
+                    if rounded_amount > available:
+                        rounded_amount = available
+                    # guardando a quantidad (e o custo) referentes a o destino em questão
+                    returns[idx]= rounded_amount
+                    costs[idx] = rounded_amount*self.costs[idx]
+                    # descontamos agora a quantidade de material disponível
+                    available -= rounded_amount
+                    # e o próximo corte começa onde terminou esse
+                    initial_cut = final_cut
 
             return returns, costs
         else:
@@ -254,9 +270,9 @@ class SupplyChainEnv(gym.Env):
         action_space_size = 0
         for node in self.nodes:
             action_space_size += node.num_expected_actions()
-        obs_space_size = len(self.nodes)*(1+leadtime)
+        obs_space_size = len(self.last_level_nodes)+len(self.nodes)*(1+leadtime)
 
-        # O action_space é tratado como de [0,1] aqui então quando a ação é recebida o valor
+        # O action_space é tratado como de [0,1] no código, então quando a ação é recebida o valor
         # é desnormalizado
         self.action_space      = spaces.Box(low=-1.0, high=1.0, shape=(action_space_size,))
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(obs_space_size,))
@@ -270,6 +286,11 @@ class SupplyChainEnv(gym.Env):
         self.customer_demands = []
 
         self.current_reward = 0.0
+        # definindo as demandas do próximo período
+        self.customer_demands = self.rand_generator.randint(low=self.demand_range[0],
+                                                            high=self.demand_range[1], 
+                                                            size=len(self.last_level_nodes))
+        
         self.current_state = self._build_observation()
 
         return self.current_state
@@ -277,9 +298,7 @@ class SupplyChainEnv(gym.Env):
     def step(self, action):
         action = self._denormalize_action(action)
 
-        self.time_step += 1
-        self.customer_demands = self.rand_generator.randint(low=self.demand_range[0],
-                             high=self.demand_range[1], size=len(self.last_level_nodes))
+        self.time_step += 1        
 
         total_cost = 0.0
 
@@ -294,6 +313,11 @@ class SupplyChainEnv(gym.Env):
             met_dem = self.last_level_nodes[i].meet_demand(self.customer_demands[i])
             total_cost += self.unmet_demand_cost * (self.customer_demands[i] - met_dem)
 
+        # definindo as demandas do próximo período
+        self.customer_demands = self.rand_generator.randint(low=self.demand_range[0],
+                                                    high=self.demand_range[1], 
+                                                    size=len(self.last_level_nodes))
+
         self.current_reward = -total_cost
         self.current_state = self._build_observation()
 
@@ -302,23 +326,30 @@ class SupplyChainEnv(gym.Env):
         return (self.current_state, self.current_reward, is_terminal, {})
 
     def _build_observation(self):
-        obs = []
+        """ Uma observação será formada:
+            - Pelas demandas dos clientes
+            - Pela obervação de cada nó. Que tem:
+                - A quantidade de material em estoque.
+                - O quanto de material está chegando nos períodos seguintes.
+        """ 
+        nodes_obs = []
         for node in self.nodes:
-            obs += node.build_observation((self.time_step+1, self.time_step+self.leadtime))
-        return np.array(obs)
+            nodes_obs += node.build_observation((self.time_step+1, self.time_step+self.leadtime))
+        demands_obs = self.customer_demands/(self.demand_range[1]-1)
+        return np.concatenate((demands_obs, nodes_obs))
 
     def _denormalize_action(self, action):
         return (action+1)/2
 
     def render(self, mode='human'):
-        print('TIMESTEP:', self.time_step)
-        print('customer demands:', self.customer_demands)
+        print('TIMESTEP:', self.time_step)        
         for node in self.nodes:
             node.render()
             print()
-        print('Current state:', self.current_state)
+        print('Next demands  :', self.customer_demands)
+        print('Current state :', self.current_state)
         print('Current reward:', round(self.current_reward,2))
-        print('='*20)
+        print('='*30)
 
     def seed(self, seed=None):
         self.rand_generator = np.random.RandomState(seed)
@@ -358,8 +389,6 @@ if __name__ == '__main__':
         _, _, done, _ = env.step(action)
         env.render()
 
-# TODO: conferir se não está mandando ações para os revendedores.
-# TODO: estado deve informar a demanda do cliente no período seguinte - nem está informando a demanda no momento :( :( :(
 # TODO: tratar fábricas (transformação de matéria-prima em produto), incluindo custos
-# TODO: normalizar ações (usando wrapper)
+# TODO: ter custos diferentes entre nós do mesmo estágio !?
 
