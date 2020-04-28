@@ -232,7 +232,7 @@ class SupplyChainEnv(gym.Env):
     """
     #metadata = {'render.modes': ['human']}
     def __init__(self, nodes_info, unmet_demand_cost=1.0, exceeded_capacity_cost=1.0,
-                 demand_range=(0,10), leadtime=1, total_time_steps=1000, seed=None):
+                 demand_range=(0,11), leadtime=1, total_time_steps=1000, seed=None):
         def create_nodes(nodes_info):
             nodes_dict = {}
             self.nodes = []
@@ -274,7 +274,7 @@ class SupplyChainEnv(gym.Env):
 
         # O action_space é tratado como de [0,1] no código, então quando a ação é recebida o valor
         # é desnormalizado
-        self.action_space      = spaces.Box(low=-1.0, high=1.0, shape=(action_space_size,))
+        self.action_space      = spaces.Box(low=0.0, high=1.0, shape=(action_space_size,))
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(obs_space_size,))
 
         self.current_state = None
@@ -296,8 +296,6 @@ class SupplyChainEnv(gym.Env):
         return self.current_state
 
     def step(self, action):
-        action = self._denormalize_action(action)
-
         self.time_step += 1        
 
         total_cost = 0.0
@@ -336,10 +334,8 @@ class SupplyChainEnv(gym.Env):
         for node in self.nodes:
             nodes_obs += node.build_observation((self.time_step+1, self.time_step+self.leadtime))
         demands_obs = self.customer_demands/(self.demand_range[1]-1)
-        return np.concatenate((demands_obs, nodes_obs))
-
-    def _denormalize_action(self, action):
-        return (action+1)/2
+        obs = np.concatenate((demands_obs, nodes_obs))
+        return obs
 
     def render(self, mode='human'):
         print('TIMESTEP:', self.time_step)        
