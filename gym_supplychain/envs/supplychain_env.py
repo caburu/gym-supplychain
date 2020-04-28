@@ -123,6 +123,12 @@ class SC_Node:
         self.exceeded_capacity_cost = exceeded_capacity_cost
         self.dest = None
         self.shipments = deque()
+        
+        # Atributos estatísticos para depuração
+        self.est_stock_cost = 0
+        self.est_stock_penalty = 0
+        self.est_supply_cost = 0
+        self.est_ship_cost = 0
 
     def define_destinations(self, dests, costs):
         self.dests = dests
@@ -137,8 +143,9 @@ class SC_Node:
             ship = self.shipments.pop()
             self.stock += ship[1]
             if self.stock > self.stock_capacity:
-                total_cost = self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
-                self.stock = self.stock_capacity
+                total_cost += self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
+                self.stock = self.stock_capacity                
+                self.est_stock_penalty = self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
 
         #debug = ''
         next_action_idx = 0
@@ -149,7 +156,8 @@ class SC_Node:
             if amount > 0:
                 self.shipments.appendleft((time_step+leadtime, amount))
             #debug += str(amount)+'='+str(cost)+' + '
-            total_cost += cost
+            total_cost += cost            
+            self.est_supply_cost = cost
 
         if self.ship_action:
             amounts, costs = self.ship_action.apply(action_values[next_action_idx:], max=self.stock)
@@ -158,9 +166,12 @@ class SC_Node:
                 if amounts[i] > 0:
                     self.dests[i]._ship_material(time_step+leadtime, amounts[i])
             #debug += str(sum(amounts))+'='+str(sum(costs))+' + '
-            total_cost += sum(costs)
+            total_cost += sum(costs)            
+            self.est_ship_cost = sum(costs)
 
         total_cost += self.stock*self.stock_cost
+        self.est_stock_cost = self.stock*self.stock_cost
+
         #debug += str(self.stock)+'='+str(self.stock*self.stock_cost)+' + '
         #print('CUSTO', self.label, debug)
 
@@ -291,6 +302,10 @@ class SupplyChainEnv(gym.Env):
                                                             high=self.demand_range[1], 
                                                             size=len(self.last_level_nodes))
         
+        # Prefixo 'est' indica que é uma estatística. Ou seja, é útil para monitoramento
+        # mas não é necessário para funcionamento.
+        self.est_unmet_demands = np.zeros(len(self.last_level_nodes))
+        
         self.current_state = self._build_observation()
 
         return self.current_state
@@ -308,8 +323,9 @@ class SupplyChainEnv(gym.Env):
             total_cost += cost
 
         for i in range(len(self.last_level_nodes)):
-            met_dem = self.last_level_nodes[i].meet_demand(self.customer_demands[i])
+            met_dem = self.last_level_nodes[i].meet_demand(self.customer_demands[i])            
             total_cost += self.unmet_demand_cost * (self.customer_demands[i] - met_dem)
+            self.est_unmet_demands[i] = (self.customer_demands[i] - met_dem)
 
         # definindo as demandas do próximo período
         self.customer_demands = self.rand_generator.randint(low=self.demand_range[0],
