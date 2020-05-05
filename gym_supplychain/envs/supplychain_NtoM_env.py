@@ -1,4 +1,5 @@
 from gym_supplychain.envs.supplychain_env import SupplyChainEnv
+import warnings
 
 class SupplyChainNtoMEnv(SupplyChainEnv):
     """ Cria uma Cadeia de Suprimentos com N Fornecedores e M Varejistas (revendedores)
@@ -11,6 +12,9 @@ class SupplyChainNtoMEnv(SupplyChainEnv):
                  stock_cost=0.001, supply_cost=0.005, dest_cost=0.002,
                  unmet_demand_cost=1.0, exceeded_capacity_cost=1.0,
                  demand_range=(0,10), leadtime=1, total_time_steps=1000, seed=None):
+
+        warnings.warn('Falta tratar diferentes custos e capacidades!')
+        
 
         if not initial_stocks: # A posição zero é do fornecedor, as demais dos varejistas
             initial_stocks = [0]*(num_suppliers+num_retailers)

@@ -7,11 +7,11 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
         - Os custos são os mesmos para toda a cadeia.
         - A quantidade inicial de estoque pode ser especificada para cada nó da cadeia.
     """
-    def __init__(self, initial_stocks=[], supply_capacity=20, stock_capacity=1000,
-                 processing_ratio=3, processing_cost=0.020, 
-                 stock_cost=0.001, supply_cost=0.005, dest_cost=0.002,
-                 unmet_demand_cost=1.0, exceeded_capacity_cost=1.0,
-                 demand_range=(0,10), leadtime=1, total_time_steps=1000, seed=None):
+    def __init__(self, initial_stocks=[], supply_capacities=[50]*2, stock_capacities=[300]*8,
+                 processing_ratio=3, processing_costs=[0.010]*2, 
+                 stock_costs=[0.001]*8, supply_costs=[0.005]*2, dest_cost=0.002,
+                 unmet_demand_cost=0.054, exceeded_capacity_cost=0.010,
+                 demand_range=(10,21), leadtime=2, total_time_steps=360, seed=None):
 
         if not initial_stocks: # A posição zero é do primeiro fornecedor, e assim por diante
             initial_stocks = [0]*(8)
@@ -19,23 +19,24 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
         nodes_info = {}
         for i in range(2):
             nodes_info['Supplier'+str(i+1)] = {
-                'initial_stock':initial_stocks[i], 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
-                'supply_capacity':supply_capacity, 'supply_cost':supply_cost,
+                'initial_stock':initial_stocks[i], 'stock_capacity':stock_capacities[i], 'stock_cost':stock_costs[i],
+                'supply_capacity':supply_capacities[i], 'supply_cost':supply_costs[i],
                 'destinations':['Factory1','Factory2'], 'dest_costs':[dest_cost]*2}
         for i in range(2):
             nodes_info['Factory'+str(i+1)] = {
-                'initial_stock':initial_stocks[2+i], 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
-                'processing_cost':processing_cost,
+                'initial_stock':initial_stocks[2+i], 'stock_capacity':stock_capacities[2+i], 'stock_cost':stock_costs[2+i],
+                'processing_cost':processing_costs[i],
                 'destinations':['WholeSaler1','WholeSaler2'], 'dest_costs':[dest_cost]*2}
         for i in range(2):
             nodes_info['WholeSaler'+str(i+1)] = {
-                'initial_stock':initial_stocks[4+i], 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
+                'initial_stock':initial_stocks[4+i], 'stock_capacity':stock_capacities[4+i], 'stock_cost':stock_costs[4+i],
                 'destinations':['Retailer1','Retailer2'], 'dest_costs':[dest_cost]*2}
         for i in range(2):
             nodes_info['Retailer'+str(i+1)] =  {
-                'initial_stock':initial_stocks[6+i], 'stock_capacity':stock_capacity,
-                'stock_cost':stock_cost, 'last_level':True}
+                'initial_stock':initial_stocks[6+i], 'stock_capacity':stock_capacities[6+i], 'stock_cost':stock_costs[6+i],
+                'last_level':True}
 
+        print(nodes_info)
         super().__init__(nodes_info, unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
                          processing_ratio=processing_ratio, 
                          total_time_steps=total_time_steps, leadtime=leadtime)
@@ -43,29 +44,29 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
 if __name__ == '__main__':
     initial_stocks  = [0, 0, 10, 10, 15, 15, 20, 20]
     
-    demand_range     = (10,21)
-    stock_capacity   = 300
-    supply_capacity  = 50
-    processing_ratio = 3
-    leadtime    = 2
-    stock_cost  = 0.001
-    dest_cost   = 2*stock_cost
-    supply_cost = 5*stock_cost
-    processing_cost   = 2*supply_cost
+    demand_range      = (10,21)
+    stock_capacities  = [300,200,300,200,300,200,300,200]
+    supply_capacities = [50,40]
+    processing_ratio  = 3
+    leadtime     = 2
+    stock_costs  = [0.001]*8
+    dest_cost    = 0.002
+    supply_costs = [0.006, 0.004]
+    processing_costs = [0.012, 0.010]
     # Quanto custa para produzir e entregar uma unidade de produto (sem usar estoque)
-    product_cost = supply_cost + 3*leadtime*dest_cost + processing_cost 
+    product_cost = 0.005 + 3*leadtime*dest_cost + 0.010
     # O custo de demanda não atendida é duas vezes o custo de produzir (como se comprasse do concorrente).
     unmet_demand_cost = 2*product_cost
     # O custo de excesso de estoque talvez pudesse nem existir, já que o custo já incorrido no material
     # é perdido. Mas podemos considerar também que existiria um custo de desfazer do material.
-    exceeded_capacity_cost = 10*stock_cost
+    exceeded_capacity_cost = 10*max(stock_costs)
     
     total_time_steps = 5
 
     env = SupplyChain2perStageEnv(
-             initial_stocks=initial_stocks, supply_capacity=supply_capacity, stock_capacity=stock_capacity,
-             processing_ratio=processing_ratio, processing_cost=processing_cost,
-             stock_cost=stock_cost, supply_cost=supply_cost, dest_cost=dest_cost,
+             initial_stocks=initial_stocks, supply_capacities=supply_capacities, stock_capacities=stock_capacities,
+             processing_ratio=processing_ratio, processing_costs=processing_costs,
+             stock_costs=stock_costs, supply_costs=supply_costs, dest_cost=dest_cost,
              unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
              demand_range=demand_range, leadtime=leadtime, total_time_steps=total_time_steps)
     env.reset()

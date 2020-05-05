@@ -1,4 +1,5 @@
 from gym_supplychain.envs.supplychain_env import SupplyChainEnv
+import warnings
 
 class SupplyChainLinearEnv(SupplyChainEnv):
     """ Cria uma Cadeia de Suprimentos com 1 Fornecedor, 1 Fábrica, 1 distribuidor e 1 Varejista (revendedor)
@@ -13,6 +14,8 @@ class SupplyChainLinearEnv(SupplyChainEnv):
                  unmet_demand_cost=1.0, exceeded_capacity_cost=1.0,
                  demand_range=(0,10), leadtime=1, total_time_steps=1000, seed=None):
 
+        warnings.warn('Falta tratar diferentes custos e capacidades!')
+        
         if not initial_stocks: # A posição zero é do fornecedor, e assim por diante
             initial_stocks = [0]*(4)
 
