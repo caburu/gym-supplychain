@@ -285,7 +285,7 @@ class SupplyChainEnv(gym.Env):
 
         # O action_space é tratado como de [0,1] no código, então quando a ação é recebida o valor
         # é desnormalizado
-        self.action_space      = spaces.Box(low=0.0, high=1.0, shape=(action_space_size,))
+        self.action_space      = spaces.Box(low=-1.0, high=1.0, shape=(action_space_size,))
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(obs_space_size,))
 
         self.current_state = None
@@ -309,8 +309,13 @@ class SupplyChainEnv(gym.Env):
         self.current_state = self._build_observation()
 
         return self.current_state
+        
+    def _denormalize_action(self, action):
+        return (action+1)/2
 
     def step(self, action):
+        action = self._denormalize_action(action)
+        
         self.time_step += 1        
 
         total_cost = 0.0
@@ -400,7 +405,4 @@ if __name__ == '__main__':
         action = env.action_space.sample()
         _, _, done, _ = env.step(action)
         env.render()
-
-# TODO: tratar fábricas (transformação de matéria-prima em produto), incluindo custos
-# TODO: ter custos diferentes entre nós do mesmo estágio !?
 
