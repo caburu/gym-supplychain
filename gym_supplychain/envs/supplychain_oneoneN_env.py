@@ -8,6 +8,7 @@ class SupplyChainOneOneNEnv(SupplyChainEnv):
         - A quantidade inicial de estoque pode ser especificada para cada nó da cadeia.
     """
     def __init__(self, num_retailers=3, initial_stocks=[], supply_capacity=20, stock_capacity=1000,
+                 processing_ratio=3, processing_cost=0.020, 
                  stock_cost=0.001, supply_cost=0.005, dest_cost=0.002,
                  unmet_demand_cost=1.0, exceeded_capacity_cost=1.0,
                  demand_range=(0,10), leadtime=1, total_time_steps=1000, seed=None):
@@ -30,6 +31,7 @@ class SupplyChainOneOneNEnv(SupplyChainEnv):
 
         nodes_info[factory_name] = {
             'initial_stock':initial_stocks[1], 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
+            'processing_cost':processing_cost,
             'destinations':retailers_names, 'dest_costs':[dest_cost]*num_retailers}
 
         for i in range(num_retailers):
@@ -45,9 +47,11 @@ if __name__ == '__main__':
     initial_stocks  = [0, 20, 10, 0 , 5]
     stock_capacity  = 1000
     supply_capacity = 20
+    processing_ratio = 3
     stock_cost  = 0.001
-    supply_cost = 0.005
-    dest_cost   = 0.002
+    supply_cost = 5*stock_cost
+    dest_cost   = 2*stock_cost
+    processing_cost = 4*supply_cost 
     unmet_demand_cost = 1.0
     exceeded_capacity_cost = 1.0
     demand_range = (0,10)
@@ -56,6 +60,7 @@ if __name__ == '__main__':
 
     env = SupplyChainOneOneNEnv(num_retailers=num_retailers,
              initial_stocks=initial_stocks, supply_capacity=supply_capacity, stock_capacity=stock_capacity,
+             processing_ratio=processing_ratio, 
              stock_cost=stock_cost, supply_cost=supply_cost, dest_cost=dest_cost,
              unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
              demand_range=demand_range, leadtime=leadtime, total_time_steps=total_time_steps)

@@ -41,8 +41,8 @@ if __name__ == '__main__':
     stock_capacity  = 1000
     supply_capacity = 20
     stock_cost  = 0.001
-    supply_cost = 0.005
-    dest_cost   = 0.002
+    supply_cost = 5*stock_cost
+    dest_cost   = 2*stock_cost
     unmet_demand_cost = 1.0
     exceeded_capacity_cost = 1.0
     demand_range = (0,10)

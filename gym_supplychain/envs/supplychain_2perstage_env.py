@@ -8,6 +8,7 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
         - A quantidade inicial de estoque pode ser especificada para cada nó da cadeia.
     """
     def __init__(self, initial_stocks=[], supply_capacity=20, stock_capacity=1000,
+                 processing_ratio=3, processing_cost=0.020, 
                  stock_cost=0.001, supply_cost=0.005, dest_cost=0.002,
                  unmet_demand_cost=1.0, exceeded_capacity_cost=1.0,
                  demand_range=(0,10), leadtime=1, total_time_steps=1000, seed=None):
@@ -24,6 +25,7 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
         for i in range(2):
             nodes_info['Factory'+str(i+1)] = {
                 'initial_stock':initial_stocks[2+i], 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
+                'processing_cost':processing_cost,
                 'destinations':['WholeSaler1','WholeSaler2'], 'dest_costs':[dest_cost]*2}
         for i in range(2):
             nodes_info['WholeSaler'+str(i+1)] = {
@@ -35,15 +37,18 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                 'stock_cost':stock_cost, 'last_level':True}
 
         super().__init__(nodes_info, unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
+                         processing_ratio=processing_ratio, 
                          total_time_steps=total_time_steps, leadtime=leadtime)
 
 if __name__ == '__main__':
     initial_stocks  = [0, 0, 10, 10, 15, 15, 20, 20]
     stock_capacity  = 1000
     supply_capacity = 20
+    processing_ratio = 3
     stock_cost  = 0.001
-    supply_cost = 0.005
-    dest_cost   = 0.002
+    supply_cost = 5*stock_cost
+    dest_cost   = 2*stock_cost
+    processing_cost = 4*supply_cost 
     unmet_demand_cost = 1.0
     exceeded_capacity_cost = 1.0
     demand_range = (0,10)
@@ -52,6 +57,7 @@ if __name__ == '__main__':
 
     env = SupplyChain2perStageEnv(
              initial_stocks=initial_stocks, supply_capacity=supply_capacity, stock_capacity=stock_capacity,
+             processing_ratio=processing_ratio, processing_cost=processing_cost,
              stock_cost=stock_cost, supply_cost=supply_cost, dest_cost=dest_cost,
              unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
              demand_range=demand_range, leadtime=leadtime, total_time_steps=total_time_steps)

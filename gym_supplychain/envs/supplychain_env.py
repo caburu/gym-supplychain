@@ -147,25 +147,31 @@ class SC_Node:
     def act(self, action_values, leadtime, time_step, customer_demand=None):
         total_cost = 0
 
+        arrived_material = 0
         # O primeiro passo é receber o material que está pra chegar
         while self.shipments and  self.shipments[-1][0] == time_step:
             _, amount = self.shipments.pop()
-            # Se é uma fábrica, é necessário processar a matéria-prima, gerando produto
-            if self.processing_ratio > 0:
-                # A matéria-prima que chegou é somada com matéria-prima anterior que
-                # pode ter sobrado como resto do processamento
-                material = amount+self.pending_material
-                amount = material // self.processing_ratio
-                # Calcula o novo resto do processamento
-                self.pending_material = material % self.processing_ratio
-                # Calcula o custo de processamento
-                self.est_processing_cost = amount * self.processing_cost
-                total_cost += self.est_processing_cost                
+            arrived_material += amount
+            
+        # Se é uma fábrica, é necessário processar a matéria-prima, gerando produto
+        if self.processing_ratio > 0:
+            # A matéria-prima que chegou é somada com matéria-prima anterior que
+            # pode ter sobrado como resto do processamento
+            material = arrived_material+self.pending_material
+            amount = material // self.processing_ratio
+            # Calcula o novo resto do processamento
+            self.pending_material = material % self.processing_ratio
+            # Calcula o custo de processamento (calculado por unidade de matéria-prima usada)
+            self.est_processing_cost = (material-self.pending_material) * self.processing_cost  
+            total_cost += self.est_processing_cost            
             self.stock += amount
-            if self.stock > self.stock_capacity:
-                self.est_stock_penalty = self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
-                total_cost += self.est_stock_penalty
-                self.stock = self.stock_capacity                
+        else:
+            self.stock += arrived_material
+            
+        if self.stock > self.stock_capacity:
+            self.est_stock_penalty = self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
+            total_cost += self.est_stock_penalty
+            self.stock = self.stock_capacity                
                 
         #debug = ''
         next_action_idx = 0
