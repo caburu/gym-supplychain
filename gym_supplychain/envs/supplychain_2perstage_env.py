@@ -36,7 +36,6 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                 'initial_stock':initial_stocks[6+i], 'stock_capacity':stock_capacities[6+i], 'stock_cost':stock_costs[6+i],
                 'last_level':True}
 
-        print(nodes_info)
         super().__init__(nodes_info, unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
                          processing_ratio=processing_ratio, 
                          total_time_steps=total_time_steps, leadtime=leadtime)
