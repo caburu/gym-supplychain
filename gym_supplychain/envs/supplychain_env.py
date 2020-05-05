@@ -107,8 +107,9 @@ class SC_Node:
         - Uma lista de destinos.
         - Uma fila de material para chegar.
     """
-    def __init__(self, label, initial_stock=0, stock_capacity=0, supply_capacity=0, last_level=False,
-                 stock_cost=0.0, supply_cost=0.0, exceeded_capacity_cost=1.0):
+    def __init__(self, label, initial_stock=0, stock_capacity=0, supply_capacity=0, processing_ratio=0,
+                 last_level=False, stock_cost=0.0, supply_cost=0.0, processing_cost=0.0, 
+                 exceeded_capacity_cost=1.0,unmet_demand_cost=1.0):
         self.label = label
         self.supply_action = None
         self.ship_action = None
@@ -121,6 +122,12 @@ class SC_Node:
         self.stock_capacity = stock_capacity
         self.stock_cost = stock_cost
         self.exceeded_capacity_cost = exceeded_capacity_cost
+        self.unmet_demand_cost = unmet_demand_cost
+        
+        self.processing_ratio = processing_ratio
+        if self.processing_ratio > 0:
+            self.pending_material = 0
+            self.processing_cost = processing_cost
         self.dest = None
         self.shipments = deque()
         
@@ -128,25 +135,38 @@ class SC_Node:
         self.est_stock_cost = 0
         self.est_stock_penalty = 0
         self.est_supply_cost = 0
+        self.est_processing_cost = 0
         self.est_ship_cost = 0
+        self.est_unmet_demands_cost = 0
 
     def define_destinations(self, dests, costs):
         self.dests = dests
         self.ship_action = SC_Action('SHIP', costs=costs)
         self.num_actions += len(self.dests)
 
-    def act(self, action_values, leadtime, time_step):
+    def act(self, action_values, leadtime, time_step, customer_demand=None):
         total_cost = 0
 
         # O primeiro passo é receber o material que está pra chegar
         while self.shipments and  self.shipments[-1][0] == time_step:
-            ship = self.shipments.pop()
-            self.stock += ship[1]
+            _, amount = self.shipments.pop()
+            # Se é uma fábrica, é necessário processar a matéria-prima, gerando produto
+            if self.processing_ratio > 0:
+                # A matéria-prima que chegou é somada com matéria-prima anterior que
+                # pode ter sobrado como resto do processamento
+                material = amount+self.pending_material
+                amount = material // self.processing_ratio
+                # Calcula o novo resto do processamento
+                self.pending_material = material % self.processing_ratio
+                # Calcula o custo de processamento
+                self.est_processing_cost = amount * self.processing_cost
+                total_cost += self.est_processing_cost                
+            self.stock += amount
             if self.stock > self.stock_capacity:
-                total_cost += self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
-                self.stock = self.stock_capacity                
                 self.est_stock_penalty = self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
-
+                total_cost += self.est_stock_penalty
+                self.stock = self.stock_capacity                
+                
         #debug = ''
         next_action_idx = 0
         # O próximo passo é executar as ações referentes ao nó da cadeia
@@ -156,8 +176,8 @@ class SC_Node:
             if amount > 0:
                 self.shipments.appendleft((time_step+leadtime, amount))
             #debug += str(amount)+'='+str(cost)+' + '
-            total_cost += cost            
             self.est_supply_cost = cost
+            total_cost += self.est_supply_cost                        
 
         if self.ship_action:
             amounts, costs = self.ship_action.apply(action_values[next_action_idx:], max=self.stock)
@@ -166,8 +186,14 @@ class SC_Node:
                 if amounts[i] > 0:
                     self.dests[i]._ship_material(time_step+leadtime, amounts[i])
             #debug += str(sum(amounts))+'='+str(sum(costs))+' + '
-            total_cost += sum(costs)            
             self.est_ship_cost = sum(costs)
+            total_cost += self.est_ship_cost    
+            
+        elif self.last_level:
+            max_possible = min(self.stock, customer_demand)
+            self.stock -= max_possible
+            self.est_unmet_demands_cost = self.unmet_demand_cost * (customer_demand - max_possible)
+            total_cost += self.est_unmet_demands_cost            
 
         total_cost += self.stock*self.stock_cost
         self.est_stock_cost = self.stock*self.stock_cost
@@ -176,15 +202,6 @@ class SC_Node:
         #print('CUSTO', self.label, debug)
 
         return total_cost
-
-    def meet_demand(self, amount):
-        # Se o nó é de último nível atende à demanda do cliente
-        assert self.last_level
-
-        max_possible = min(self.stock, amount)
-        self.stock -= max_possible
-
-        return max_possible
 
     def _ship_material(self, time, amount):
         self.shipments.appendleft((time,amount))
@@ -236,6 +253,7 @@ class SC_Node:
         for i in range(len(self.shipments)):
             desc += str(self.shipments[i]) + ' - '
         desc += '[' + str(self.stock) + '] '
+        if self.processing_ratio > 0: desc += '+' + str(self.pending_material) + ' '
         return desc
 
 class SupplyChainEnv(gym.Env):
@@ -243,21 +261,34 @@ class SupplyChainEnv(gym.Env):
     """
     #metadata = {'render.modes': ['human']}
     def __init__(self, nodes_info, unmet_demand_cost=1.0, exceeded_capacity_cost=1.0,
-                 demand_range=(0,11), leadtime=1, total_time_steps=1000, seed=None):
+                 demand_range=(0,11), processing_ratio=3, leadtime=1, total_time_steps=1000, seed=None):
+                 
+        self.DEBUG = True
+        
         def create_nodes(nodes_info):
             nodes_dict = {}
             self.nodes = []
             self.last_level_nodes = []
             for node_name in nodes_info:
                 node_info = nodes_info[node_name]
+                
+                processing_cost = node_info.get('processing_cost', 0.0)
+                if processing_cost > 0:
+                    node_processing_ratio = processing_ratio
+                else:
+                    node_processing_ratio = 0
+                    
                 node = SC_Node(node_name,
                                initial_stock=node_info.get('initial_stock', 0),
                                stock_capacity=node_info.get('stock_capacity', float('inf')),
                                supply_capacity=node_info.get('supply_capacity', 0),
+                               processing_ratio=node_processing_ratio,
                                last_level=node_info.get('last_level', False),
                                stock_cost=node_info.get('stock_cost', 0.0),
                                supply_cost=node_info.get('supply_cost', 0.0),
-                               exceeded_capacity_cost=exceeded_capacity_cost)
+                               processing_cost=processing_cost,
+                               exceeded_capacity_cost=exceeded_capacity_cost,
+                               unmet_demand_cost=unmet_demand_cost)
                 nodes_dict[node_name] = node
                 self.nodes.append(node)
                 if node.is_last_level():
@@ -275,7 +306,6 @@ class SupplyChainEnv(gym.Env):
         self.leadtime = leadtime
         self.rand_generator = np.random.RandomState(seed)
         self.demand_range = demand_range
-        self.unmet_demand_cost = unmet_demand_cost
 
         # Definição dos espaços de ações e de estados
         action_space_size = 0
@@ -321,16 +351,17 @@ class SupplyChainEnv(gym.Env):
         total_cost = 0.0
 
         next_action_idx = 0
+        next_customer = 0
         for node in self.nodes:
             actions_to_apply = action[next_action_idx:next_action_idx+node.num_expected_actions()]
             next_action_idx += node.num_expected_actions()
-            cost = node.act(actions_to_apply, self.leadtime, self.time_step)
+            if node.last_level:
+                demand = self.customer_demands[next_customer]
+                next_customer += 1
+            else:
+                demand = None
+            cost = node.act(actions_to_apply, self.leadtime, self.time_step, customer_demand=demand)
             total_cost += cost
-
-        for i in range(len(self.last_level_nodes)):
-            met_dem = self.last_level_nodes[i].meet_demand(self.customer_demands[i])            
-            total_cost += self.unmet_demand_cost * (self.customer_demands[i] - met_dem)
-            self.est_unmet_demands[i] = (self.customer_demands[i] - met_dem)
 
         # definindo as demandas do próximo período
         self.customer_demands = self.rand_generator.randint(low=self.demand_range[0],
@@ -361,11 +392,15 @@ class SupplyChainEnv(gym.Env):
     def render(self, mode='human'):
         print('TIMESTEP:', self.time_step)        
         for node in self.nodes:
-            node.render()
+            node.render()            
+            if self.DEBUG:
+                print('Custos: esto.', node.est_stock_cost, 'est.p', node.est_stock_penalty,
+                      'suppl', node.est_supply_cost, 'procc', node.est_processing_cost,
+                      'ship', node.est_ship_cost, 'undem', node.est_unmet_demands_cost, end='')            
             print()
         print('Next demands  :', self.customer_demands)
         print('Current state :', self.current_state)
-        print('Current reward:', round(self.current_reward,2))
+        print('Current reward:', round(self.current_reward,3))
         print('='*30)
 
     def seed(self, seed=None):
@@ -374,9 +409,11 @@ class SupplyChainEnv(gym.Env):
 if __name__ == '__main__':
     stock_capacity  = 1000
     supply_capacity = 20
+    processing_ratio = 3
     stock_cost  = 0.001
-    supply_cost = 0.005
-    dest_cost   = 0.002
+    supply_cost = 5*stock_cost
+    dest_cost   = 2*stock_cost
+    processing_cost = 4*supply_cost 
     nodes_info = {}
     nodes_info['Supplier 1'] = {'initial_stock':10, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'supply_capacity':supply_capacity, 'supply_cost':supply_cost,
@@ -385,8 +422,10 @@ if __name__ == '__main__':
                                 'supply_capacity':supply_capacity, 'supply_cost':supply_cost,
                                 'destinations':['Factory  1', 'Factory  2'], 'dest_costs':[dest_cost]*2}
     nodes_info['Factory  1'] = {'initial_stock':0, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
+                                'processing_cost':processing_cost,
                                 'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[dest_cost]*2}
     nodes_info['Factory  2'] = {'initial_stock':0, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
+                                'processing_cost':processing_cost,
                                 'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[dest_cost]*2}
     nodes_info['Wholesal 1'] = {'initial_stock':10, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'destinations':['Retailer 1', 'Retailer 2'], 'dest_costs':[dest_cost]*2}
@@ -397,7 +436,8 @@ if __name__ == '__main__':
     nodes_info['Retailer 2'] = {'initial_stock':20, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'last_level':True}
 
-    env = SupplyChainEnv(nodes_info, unmet_demand_cost=0.1, exceeded_capacity_cost=1.0, total_time_steps=5, leadtime=2)
+    env = SupplyChainEnv(nodes_info, unmet_demand_cost=0.1, exceeded_capacity_cost=1.0, 
+                         processing_ratio=processing_ratio, total_time_steps=5, leadtime=2)
     env.reset()
     env.render()
     done = False
