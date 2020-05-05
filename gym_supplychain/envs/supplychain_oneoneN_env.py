@@ -45,17 +45,24 @@ class SupplyChainOneOneNEnv(SupplyChainEnv):
 if __name__ == '__main__':
     num_retailers   = 3
     initial_stocks  = [0, 20, 10, 0 , 5]
-    stock_capacity  = 1000
-    supply_capacity = 20
+    
+    demand_range     = (10,21)
+    stock_capacity   = 300
+    supply_capacity  = 50
     processing_ratio = 3
+    leadtime    = 2
     stock_cost  = 0.001
-    supply_cost = 5*stock_cost
     dest_cost   = 2*stock_cost
-    processing_cost = 4*supply_cost 
-    unmet_demand_cost = 1.0
-    exceeded_capacity_cost = 1.0
-    demand_range = (0,10)
-    leadtime = 2
+    supply_cost = 5*stock_cost
+    processing_cost   = 4*supply_cost
+    # Quanto custa para produzir e entregar uma unidade de produto (sem usar estoque)
+    product_cost = supply_cost + 2*leadtime*dest_cost + processing_cost 
+    # O custo de demanda não atendida é duas vezes o custo de produzir (como se comprasse do concorrente).
+    unmet_demand_cost = 2*product_cost
+    # O custo de excesso de estoque talvez pudesse nem existir, já que o custo já incorrido no material
+    # é perdido. Mas podemos considerar também que existiria um custo de desfazer do material.
+    exceeded_capacity_cost = 10*stock_cost
+    
     total_time_steps = 5
 
     env = SupplyChainOneOneNEnv(num_retailers=num_retailers,

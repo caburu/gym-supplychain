@@ -267,7 +267,7 @@ class SupplyChainEnv(gym.Env):
     """
     #metadata = {'render.modes': ['human']}
     def __init__(self, nodes_info, unmet_demand_cost=1.0, exceeded_capacity_cost=1.0,
-                 demand_range=(0,11), processing_ratio=3, leadtime=1, total_time_steps=1000, seed=None):
+                 demand_range=(10,21), processing_ratio=3, leadtime=2, total_time_steps=360, seed=None):
                  
         self.DEBUG = True
         
@@ -413,13 +413,25 @@ class SupplyChainEnv(gym.Env):
         self.rand_generator = np.random.RandomState(seed)
 
 if __name__ == '__main__':
-    stock_capacity  = 1000
-    supply_capacity = 20
+    demand_range     = (10,21)
+    stock_capacity   = 300
+    supply_capacity  = 50
     processing_ratio = 3
+    leadtime    = 2
     stock_cost  = 0.001
-    supply_cost = 5*stock_cost
     dest_cost   = 2*stock_cost
-    processing_cost = 4*supply_cost 
+    supply_cost = 5*stock_cost
+    processing_cost   = 2*supply_cost
+    # Quanto custa para produzir e entregar uma unidade de produto (sem usar estoque)
+    product_cost = supply_cost + 3*leadtime*dest_cost + processing_cost 
+    # O custo de demanda não atendida é duas vezes o custo de produzir (como se comprasse do concorrente).
+    unmet_demand_cost = 2*product_cost
+    # O custo de excesso de estoque talvez pudesse nem existir, já que o custo já incorrido no material
+    # é perdido. Mas podemos considerar também que existiria um custo de desfazer do material.
+    exceeded_capacity_cost = 10*stock_cost
+    
+    total_time_steps = 5
+    
     nodes_info = {}
     nodes_info['Supplier 1'] = {'initial_stock':10, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'supply_capacity':supply_capacity, 'supply_cost':supply_cost,
@@ -442,8 +454,9 @@ if __name__ == '__main__':
     nodes_info['Retailer 2'] = {'initial_stock':20, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'last_level':True}
 
-    env = SupplyChainEnv(nodes_info, unmet_demand_cost=0.1, exceeded_capacity_cost=1.0, 
-                         processing_ratio=processing_ratio, total_time_steps=5, leadtime=2)
+    env = SupplyChainEnv(nodes_info, demand_range=demand_range, unmet_demand_cost=unmet_demand_cost, 
+                         exceeded_capacity_cost=exceeded_capacity_cost, processing_ratio=processing_ratio, 
+                         leadtime=leadtime, total_time_steps=total_time_steps)
     env.reset()
     env.render()
     done = False
