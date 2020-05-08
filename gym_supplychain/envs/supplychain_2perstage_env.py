@@ -7,10 +7,10 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
         - Os custos são os mesmos para toda a cadeia.
         - A quantidade inicial de estoque pode ser especificada para cada nó da cadeia.
     """
-    def __init__(self, initial_stocks=[], supply_capacities=[50]*2, stock_capacities=[300]*8,
-                 processing_ratio=3, processing_costs=[0.010]*2, 
-                 stock_costs=[0.001]*8, supply_costs=[0.005]*2, dest_cost=0.002,
-                 unmet_demand_cost=0.054, exceeded_capacity_cost=0.010,
+    def __init__(self, initial_stocks=[20]*8, supply_capacities=[150,120], stock_capacities=[300,200]*4,
+                 processing_ratio=3, processing_costs=[0.012,0.010], 
+                 stock_costs=[0.001]*8, supply_costs=[0.006,0.004], dest_cost=0.002,
+                 unmet_demand_cost=0.090, exceeded_capacity_cost=0.010,
                  demand_range=(10,21), leadtime=2, total_time_steps=360, seed=None):
 
         if not initial_stocks: # A posição zero é do primeiro fornecedor, e assim por diante
@@ -53,13 +53,14 @@ if __name__ == '__main__':
     supply_costs = [0.006, 0.004]
     processing_costs = [0.012, 0.010]
     # Quanto custa para produzir e entregar uma unidade de produto (sem usar estoque)
-    product_cost = 0.005 + 3*leadtime*dest_cost + 0.010
-    # O custo de demanda não atendida é duas vezes o custo de produzir (como se comprasse do concorrente).
-    unmet_demand_cost = 2*product_cost
+    product_cost = max(supply_costs) + 2*leadtime*dest_cost + max(processing_costs) + 4*max(stock_costs)
+    # O custo de demanda não atendida é três vezes o custo de produzir (como se comprasse do concorrente).
+    unmet_demand_cost = 3*product_cost
     # O custo de excesso de estoque talvez pudesse nem existir, já que o custo já incorrido no material
     # é perdido. Mas podemos considerar também que existiria um custo de desfazer do material.
     exceeded_capacity_cost = 10*max(stock_costs)
     
+    episodes = 2
     total_time_steps = 5
 
     env = SupplyChain2perStageEnv(
@@ -68,10 +69,13 @@ if __name__ == '__main__':
              stock_costs=stock_costs, supply_costs=supply_costs, dest_cost=dest_cost,
              unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
              demand_range=demand_range, leadtime=leadtime, total_time_steps=total_time_steps)
-    env.reset()
-    env.render()
-    done = False
-    while not done:
-        action = env.action_space.sample()
-        _, _, done, _ = env.step(action)
+             
+    for ep in range(episodes):
+        print('\n\nEpisódio:', ep, '\n\n')
+        env.reset()
         env.render()
+        done = False
+        while not done:
+            action = env.action_space.sample()
+            _, _, done, _ = env.step(action)
+            env.render()

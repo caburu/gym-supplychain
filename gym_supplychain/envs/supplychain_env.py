@@ -129,15 +129,7 @@ class SC_Node:
             self.pending_material = 0
             self.processing_cost = processing_cost
         self.dest = None
-        self.shipments = deque()
-        
-        # Atributos estatísticos para depuração
-        self.est_stock_cost = 0
-        self.est_stock_penalty = 0
-        self.est_supply_cost = 0
-        self.est_processing_cost = 0
-        self.est_ship_cost = 0
-        self.est_unmet_demands_cost = 0
+        self.shipments = deque()        
 
     def define_destinations(self, dests, costs):
         self.dests = dests
@@ -162,15 +154,17 @@ class SC_Node:
             # Calcula o novo resto do processamento
             self.pending_material = material % self.processing_ratio
             # Calcula o custo de processamento (calculado por unidade de matéria-prima usada)
-            self.est_processing_cost = (material-self.pending_material) * self.processing_cost  
-            total_cost += self.est_processing_cost            
+            self.est_costs['processing'] = (material-self.pending_material) * self.processing_cost
+            self.est_units['processing'] = (material-self.pending_material)
+            total_cost += self.est_costs['processing']            
             self.stock += amount
         else:
             self.stock += arrived_material
             
         if self.stock > self.stock_capacity:
-            self.est_stock_penalty = self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
-            total_cost += self.est_stock_penalty
+            self.est_costs['stock_penalty'] = self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
+            self.est_units['stock_penalty'] = self.stock - self.stock_capacity
+            total_cost += self.est_costs['stock_penalty']
             self.stock = self.stock_capacity                
                 
         #debug = ''
@@ -182,8 +176,9 @@ class SC_Node:
             if amount > 0:
                 self.shipments.appendleft((time_step+leadtime, amount))
             #debug += str(amount)+'='+str(cost)+' + '
-            self.est_supply_cost = cost
-            total_cost += self.est_supply_cost                        
+            self.est_costs['supply'] = cost
+            self.est_units['supply'] = amount
+            total_cost += self.est_costs['supply']                   
 
         if self.ship_action:
             amounts, costs = self.ship_action.apply(action_values[next_action_idx:], max=self.stock)
@@ -192,17 +187,20 @@ class SC_Node:
                 if amounts[i] > 0:
                     self.dests[i]._ship_material(time_step+leadtime, amounts[i])
             #debug += str(sum(amounts))+'='+str(sum(costs))+' + '
-            self.est_ship_cost = sum(costs)
-            total_cost += self.est_ship_cost    
+            self.est_costs['ship'] = sum(costs)
+            self.est_units['ship'] = sum(amounts)
+            total_cost += self.est_costs['ship']  
             
         elif self.last_level:
             max_possible = min(self.stock, customer_demand)
             self.stock -= max_possible
-            self.est_unmet_demands_cost = self.unmet_demand_cost * (customer_demand - max_possible)
-            total_cost += self.est_unmet_demands_cost            
+            self.est_costs['unmet_dem'] = self.unmet_demand_cost * (customer_demand - max_possible)
+            self.est_units['unmet_dem'] = customer_demand - max_possible
+            total_cost += self.est_costs['unmet_dem']     
 
-        total_cost += self.stock*self.stock_cost
-        self.est_stock_cost = self.stock*self.stock_cost
+        self.est_costs['stock'] = self.stock*self.stock_cost
+        self.est_units['stock'] = self.stock
+        total_cost += self.est_costs['stock']
 
         #debug += str(self.stock)+'='+str(self.stock*self.stock_cost)+' + '
         #print('CUSTO', self.label, debug)
@@ -215,6 +213,10 @@ class SC_Node:
     def reset(self):
         self.stock = self.initial_stock
         self.shipments.clear()
+        
+        # Atributos estatísticos para depuração
+        self.est_costs = {'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'ship':0, 'unmet_dem':0}
+        self.est_units = {'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'ship':0, 'unmet_dem':0} 
 
     def num_expected_actions(self):
         return self.num_actions
@@ -322,7 +324,7 @@ class SupplyChainEnv(gym.Env):
         # O action_space é tratado como de [0,1] no código, então quando a ação é recebida o valor
         # é desnormalizado
         self.action_space      = spaces.Box(low=-1.0, high=1.0, shape=(action_space_size,))
-        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(obs_space_size,))
+        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(obs_space_size,))        
 
         self.current_state = None
 
@@ -330,21 +332,28 @@ class SupplyChainEnv(gym.Env):
         for node in self.nodes:
             node.reset()
         self.time_step = 0
-        self.customer_demands = []
 
         self.current_reward = 0.0
+        self.episode_rewards = 0.0
         # definindo as demandas do próximo período
         self.customer_demands = self.rand_generator.randint(low=self.demand_range[0],
                                                             high=self.demand_range[1], 
-                                                            size=len(self.last_level_nodes))
-        
-        # Prefixo 'est' indica que é uma estatística. Ou seja, é útil para monitoramento
-        # mas não é necessário para funcionamento.
-        self.est_unmet_demands = np.zeros(len(self.last_level_nodes))
+                                                            size=len(self.last_level_nodes))        
         
         self.current_state = self._build_observation()
 
+        # Estatísticas do episódio
+        self.est_episode = self._initial_est_episode()
+
         return self.current_state
+    
+    def _initial_est_episode(self):
+        return {'rewards':0, 
+                'costs':{
+                    'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'ship':0, 'unmet_dem':0},
+                'units':{
+                    'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'ship':0, 'unmet_dem':0}
+                }
         
     def _denormalize_action(self, action):
         return (action+1)/2
@@ -375,11 +384,26 @@ class SupplyChainEnv(gym.Env):
                                                     size=len(self.last_level_nodes))
 
         self.current_reward = -total_cost
+        self.episode_rewards += self.current_reward
         self.current_state = self._build_observation()
 
         is_terminal = self.time_step == self.total_time_steps
 
-        return (self.current_state, self.current_reward, is_terminal, {})
+        self._update_statistics()
+        
+        self.current_info = self._build_return_info()
+
+        return (self.current_state, self.current_reward, is_terminal, self.current_info)
+
+    def _update_statistics(self):
+        self.est_episode['rewards'] += self.current_reward
+        costs = self.est_episode['costs']
+        units = self.est_episode['units']
+        for node in self.nodes:
+            for key,value in node.est_costs.items():
+                costs[key] += value
+            for key,value in node.est_units.items():
+                units[key] += value
 
     def _build_observation(self):
         """ Uma observação será formada:
@@ -395,14 +419,17 @@ class SupplyChainEnv(gym.Env):
         obs = np.concatenate((demands_obs, nodes_obs))
         return obs
 
+    def _build_return_info(self):
+        # O prefixo 'sc_' serve pra identificar as chaves que se refere ao ambiente
+        # porque a biblioteca Stable Baselines inclui informação adicional
+        return {'sc_episode':self.est_episode}
+
     def render(self, mode='human'):
         print('TIMESTEP:', self.time_step)        
         for node in self.nodes:
             node.render()            
             if self.DEBUG:
-                print('Custos: esto.', node.est_stock_cost, 'est.p', node.est_stock_penalty,
-                      'suppl', node.est_supply_cost, 'procc', node.est_processing_cost,
-                      'ship', node.est_ship_cost, 'undem', node.est_unmet_demands_cost, end='')            
+                print('Custos:', node.est_costs, end='')
             print()
         print('Next demands  :', self.customer_demands)
         print('Current state :', self.current_state)
@@ -423,6 +450,7 @@ if __name__ == '__main__':
     supply_cost = 5*stock_cost
     processing_cost   = 2*supply_cost
     # Quanto custa para produzir e entregar uma unidade de produto (sem usar estoque)
+    # Obs: na verdade custo de transporte seria 2*leadtime*cost, porque não paga transporte no fornecimento
     product_cost = supply_cost + 3*leadtime*dest_cost + processing_cost 
     # O custo de demanda não atendida é duas vezes o custo de produzir (como se comprasse do concorrente).
     unmet_demand_cost = 2*product_cost
