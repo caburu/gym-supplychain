@@ -165,7 +165,10 @@ class SC_Node:
             self.est_costs['stock_penalty'] = self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
             self.est_units['stock_penalty'] = self.stock - self.stock_capacity
             total_cost += self.est_costs['stock_penalty']
-            self.stock = self.stock_capacity                
+            self.stock = self.stock_capacity
+        else:
+            self.est_costs['stock_penalty'] = 0
+            self.est_units['stock_penalty'] = 0
                 
         #debug = ''
         next_action_idx = 0

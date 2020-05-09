@@ -10,7 +10,7 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
     def __init__(self, initial_stocks=[20]*8, supply_capacities=[150,120], stock_capacities=[300,200]*4,
                  processing_ratio=3, processing_costs=[0.012,0.010], 
                  stock_costs=[0.001]*8, supply_costs=[0.006,0.004], dest_cost=0.002,
-                 unmet_demand_cost=0.090, exceeded_capacity_cost=0.010,
+                 unmet_demand_cost=0.213, exceeded_capacity_cost=0.010,
                  demand_range=(10,21), leadtime=2, total_time_steps=360, seed=None):
 
         if not initial_stocks: # A posição zero é do primeiro fornecedor, e assim por diante
@@ -52,10 +52,16 @@ if __name__ == '__main__':
     dest_cost    = 0.002
     supply_costs = [0.006, 0.004]
     processing_costs = [0.012, 0.010]
-    # Quanto custa para produzir e entregar uma unidade de produto (sem usar estoque)
-    product_cost = max(supply_costs) + 2*leadtime*dest_cost + max(processing_costs) + 4*max(stock_costs)
+    # Essa primeira tentativa se mostrou não muito "real"
+        # Quanto custa para produzir e entregar uma unidade de produto (sem usar estoque)
+        # product_cost = max(supply_costs) + 2*leadtime*dest_cost + max(processing_costs) + 4*max(stock_costs)        
+    # Usei então um baseline para encontrar o custo médio do produto
+    # e cheguei aos valores abaixo
+    product_cost = 0.071
+    
     # O custo de demanda não atendida é três vezes o custo de produzir (como se comprasse do concorrente).
     unmet_demand_cost = 3*product_cost
+    
     # O custo de excesso de estoque talvez pudesse nem existir, já que o custo já incorrido no material
     # é perdido. Mas podemos considerar também que existiria um custo de desfazer do material.
     exceeded_capacity_cost = 10*max(stock_costs)
