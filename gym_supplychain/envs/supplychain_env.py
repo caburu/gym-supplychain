@@ -327,7 +327,7 @@ class SupplyChainEnv(gym.Env):
         # O action_space é tratado como de [0,1] no código, então quando a ação é recebida o valor
         # é desnormalizado
         self.action_space      = spaces.Box(low=-1.0, high=1.0, shape=(action_space_size,))
-        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(obs_space_size,))        
+        self.observation_space = spaces.Box(low=-1.0, high=1.0, shape=(obs_space_size,))        
 
         self.current_state = None
 
@@ -360,6 +360,9 @@ class SupplyChainEnv(gym.Env):
         
     def _denormalize_action(self, action):
         return (action+1)/2
+        
+    def _normalize_obs(self, obs):
+        return obs*2 - 1
 
     def step(self, action):
         action = self._denormalize_action(action)
@@ -420,7 +423,8 @@ class SupplyChainEnv(gym.Env):
             nodes_obs += node.build_observation((self.time_step+1, self.time_step+self.leadtime))
         demands_obs = self.customer_demands/(self.demand_range[1]-1)
         obs = np.concatenate((demands_obs, nodes_obs))
-        return obs
+        norm_obs = self._normalize_obs(obs)
+        return norm_obs
 
     def _build_return_info(self):
         # O prefixo 'sc_' serve pra identificar as chaves que se refere ao ambiente
