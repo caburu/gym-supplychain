@@ -107,7 +107,8 @@ class SC_Node:
         - Uma lista de destinos.
         - Uma fila de material para chegar.
     """
-    def __init__(self, label, initial_stock=0, stock_capacity=0, supply_capacity=0, processing_ratio=0,
+    def __init__(self, label, initial_stock=0, initial_supply=None, initial_shipments=None, 
+                 stock_capacity=0, supply_capacity=0, processing_ratio=0,
                  last_level=False, stock_cost=0.0, supply_cost=0.0, processing_cost=0.0, 
                  exceeded_capacity_cost=1.0,unmet_demand_cost=1.0):
         self.label = label
@@ -118,16 +119,19 @@ class SC_Node:
             self.supply_action = SC_Action('SUPPLY', capacity=supply_capacity, costs=supply_cost)
             self.num_actions += 1
         self.last_level = last_level
+        
         self.initial_stock = initial_stock
+        self.initial_supply = initial_supply
+        self.initial_shipments = initial_shipments
+        
         self.stock_capacity = stock_capacity
         self.stock_cost = stock_cost
         self.exceeded_capacity_cost = exceeded_capacity_cost
         self.unmet_demand_cost = unmet_demand_cost
         
         self.processing_ratio = processing_ratio
-        if self.processing_ratio > 0:
-            self.pending_material = 0
-            self.processing_cost = processing_cost
+        self.processing_cost = processing_cost
+        self.pending_material = 0
         self.dest = None
         self.shipments = deque()        
 
@@ -216,6 +220,15 @@ class SC_Node:
     def reset(self):
         self.stock = self.initial_stock
         self.shipments.clear()
+        if self.initial_supply:
+            for i in range(len(self.initial_supply)):
+                self.shipments.appendleft((i+1, self.initial_supply[i]))
+        if self.initial_shipments:
+            for i in range(len(self.initial_shipments)):
+                self.shipments.appendleft((i+1, self.initial_shipments[i]))
+        
+        if self.processing_ratio > 0:
+            self.pending_material = 0
         
         # Atributos estatísticos para depuração
         self.est_costs = {'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'ship':0, 'unmet_dem':0}
@@ -240,9 +253,16 @@ class SC_Node:
             Os valores dos carregamentos, por enquanto, serão dados também como porcentagem
             da capacidade do estoque, assumindo como esse o limite superior para transporte.
         """
-        obs = [self.stock/self.stock_capacity]
+        # a primeira informação é o estoque atual.
+        # - No caso das fábricas inclui a fração de matéria-prima pendente (se existir)
+        current_stock = self.stock
+        if self.processing_ratio > 0:
+            current_stock += self.pending_material/self.processing_ratio
+
+        obs = [current_stock/self.stock_capacity]
 
         # Se não tem nenhum carregamento pra chegar
+        # Cria os carregamentos vazios
         if not self.shipments:
             obs += [0]*(shipments_range[1]-shipments_range[0]+1)
             return obs
@@ -291,6 +311,8 @@ class SupplyChainEnv(gym.Env):
                     
                 node = SC_Node(node_name,
                                initial_stock=node_info.get('initial_stock', 0),
+                               initial_supply=node_info.get('initial_supply', None),
+                               initial_shipments=node_info.get('initial_shipments', None),
                                stock_capacity=node_info.get('stock_capacity', float('inf')),
                                supply_capacity=node_info.get('supply_capacity', 0),
                                processing_ratio=node_processing_ratio,
@@ -418,12 +440,20 @@ class SupplyChainEnv(gym.Env):
                 - A quantidade de material em estoque.
                 - O quanto de material está chegando nos períodos seguintes.
         """ 
+        # Primeiro guardamos as demandas (normalizadas)
+        demands_obs = (self.customer_demands - self.demand_range[0])/(self.demand_range[1]-self.demand_range[0]-1)
+        
+        # Depois pegamos os dados de cada nó
         nodes_obs = []
         for node in self.nodes:
-            nodes_obs += node.build_observation((self.time_step+1, self.time_step+self.leadtime))
-        demands_obs = self.customer_demands/(self.demand_range[1]-1)
+            nodes_obs += node.build_observation((self.time_step+1, self.time_step+self.leadtime))        
+
+        # A observação é concatenação das demandas com os dados nos nós
         obs = np.concatenate((demands_obs, nodes_obs))
+        
+        # Por fim, normalizamos o estado para a faixa [-1,1]
         norm_obs = self._normalize_obs(obs)
+
         return norm_obs
 
     def _build_return_info(self):
