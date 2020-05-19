@@ -42,8 +42,8 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                 'last_level':True}
 
         super().__init__(nodes_info, unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
-                         processing_ratio=processing_ratio, 
-                         total_time_steps=total_time_steps, leadtime=leadtime)
+                         processing_ratio=processing_ratio, demand_range=demand_range,
+                         total_time_steps=total_time_steps, leadtime=leadtime, seed=seed)
 
 if __name__ == '__main__':
     episodes = 2
