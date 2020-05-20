@@ -420,6 +420,8 @@ class SupplyChainEnv(gym.Env):
         self._update_statistics()
         
         self.current_info = self._build_return_info()
+        
+        #print(self.customer_demands[0], ',', self.customer_demands[1], ',', end=' ')
 
         return (self.current_state, self.current_reward, is_terminal, self.current_info)
 
@@ -441,8 +443,11 @@ class SupplyChainEnv(gym.Env):
                 - O quanto de material está chegando nos períodos seguintes.
         """ 
         # Primeiro guardamos as demandas (normalizadas)
-        demands_obs = (self.customer_demands - self.demand_range[0])/(self.demand_range[1]-self.demand_range[0]-1)
-        
+        if self.demand_range[0] != self.demand_range[1]-1:
+            demands_obs = (self.customer_demands - self.demand_range[0])/(self.demand_range[1]-self.demand_range[0]-1)
+        else:
+            demands_obs = [0]*len(self.customer_demands)
+            
         # Depois pegamos os dados de cada nó
         nodes_obs = []
         for node in self.nodes:
@@ -462,15 +467,16 @@ class SupplyChainEnv(gym.Env):
         return {'sc_episode':self.est_episode}
 
     def render(self, mode='human'):
-        print('TIMESTEP:', self.time_step)        
+        print('TIMESTEP:', self.time_step)
         for node in self.nodes:
-            node.render()            
-            if self.DEBUG:
-                print('Custos:', node.est_costs, end='')
-            print()
+            node.render()
+            print()                 
         print('Next demands  :', self.customer_demands)
         print('Current state :', self.current_state)
         print('Current reward:', round(self.current_reward,3))
+        #if self.DEBUG:
+        #    for node in self.nodes:
+        #        print('Custos:', node.est_costs)
         print('='*30)
 
     def seed(self, seed=None):
