@@ -9,9 +9,9 @@ class SupplyChainLinearEnv(SupplyChainEnv):
         - A quantidade inicial de estoque pode ser especificada para cada nó da cadeia.
     """
     def __init__(self, initial_stocks=[], supply_capacity=20, stock_capacity=1000,
-                 processing_ratio=3, processing_cost=0.020, 
-                 stock_cost=0.001, supply_cost=0.005, dest_cost=0.002,
-                 unmet_demand_cost=1.0, exceeded_capacity_cost=1.0,
+                 processing_ratio=3, processing_cost=20, 
+                 stock_cost=1, supply_cost=5, dest_cost=2,
+                 unmet_demand_cost=1000, exceeded_capacity_cost=1000,
                  demand_range=(0,10), leadtime=1, total_time_steps=1000, seed=None):
 
         warnings.warn('Falta tratar diferentes custos e capacidades!')
@@ -50,7 +50,7 @@ if __name__ == '__main__':
     supply_capacity  = 50
     processing_ratio = 3
     leadtime    = 2
-    stock_cost  = 0.001
+    stock_cost  = 1
     dest_cost   = 2*stock_cost
     supply_cost = 5*stock_cost
     processing_cost   = 2*supply_cost

@@ -45,7 +45,7 @@ class SC_Action:
                 limit = self.capacity
             else:
                 limit = min(self.capacity, max)
-            supplied_amount = round(action_values*limit)
+            supplied_amount = int(round(action_values*limit))
             return supplied_amount, supplied_amount*self.costs
         elif self.action_type == 'SHIP':
             
@@ -74,7 +74,7 @@ class SC_Action:
                     # o corte vai até o valor da ação desse destino
                     final_cut = value 
                     # precisamos arredondar a quantidade de material pois ela é inteira
-                    rounded_amount = round((final_cut-initial_cut)*limit)
+                    rounded_amount = int(round((final_cut-initial_cut)*limit))
                     # tratamento para evitar problemas de arredondamento
                     if rounded_amount > available:
                         rounded_amount = available
@@ -109,8 +109,8 @@ class SC_Node:
     """
     def __init__(self, label, initial_stock=0, initial_supply=None, initial_shipments=None, 
                  stock_capacity=0, supply_capacity=0, processing_ratio=0,
-                 last_level=False, stock_cost=0.0, supply_cost=0.0, processing_cost=0.0, 
-                 exceeded_capacity_cost=1.0,unmet_demand_cost=1.0):
+                 last_level=False, stock_cost=0, supply_cost=0, processing_cost=0, 
+                 exceeded_capacity_cost=1,unmet_demand_cost=1):
         self.label = label
         self.supply_action = None
         self.ship_action = None
@@ -291,7 +291,7 @@ class SupplyChainEnv(gym.Env):
     """ OpenAI Gym Environment for Supply Chain Environments
     """
     #metadata = {'render.modes': ['human']}
-    def __init__(self, nodes_info, unmet_demand_cost=1.0, exceeded_capacity_cost=1.0,
+    def __init__(self, nodes_info, unmet_demand_cost=1000, exceeded_capacity_cost=1000,
                  demand_range=(10,21), processing_ratio=3, leadtime=2, total_time_steps=360, seed=None):
                  
         self.DEBUG = True
@@ -303,7 +303,7 @@ class SupplyChainEnv(gym.Env):
             for node_name in nodes_info:
                 node_info = nodes_info[node_name]
                 
-                processing_cost = node_info.get('processing_cost', 0.0)
+                processing_cost = node_info.get('processing_cost', 0)
                 if processing_cost > 0:
                     node_processing_ratio = processing_ratio
                 else:
@@ -317,8 +317,8 @@ class SupplyChainEnv(gym.Env):
                                supply_capacity=node_info.get('supply_capacity', 0),
                                processing_ratio=node_processing_ratio,
                                last_level=node_info.get('last_level', False),
-                               stock_cost=node_info.get('stock_cost', 0.0),
-                               supply_cost=node_info.get('supply_cost', 0.0),
+                               stock_cost=node_info.get('stock_cost', 0),
+                               supply_cost=node_info.get('supply_cost', 0),
                                processing_cost=processing_cost,
                                exceeded_capacity_cost=exceeded_capacity_cost,
                                unmet_demand_cost=unmet_demand_cost)
@@ -358,8 +358,8 @@ class SupplyChainEnv(gym.Env):
             node.reset()
         self.time_step = 0
 
-        self.current_reward = 0.0
-        self.episode_rewards = 0.0
+        self.current_reward = 0
+        self.episode_rewards = 0
         # definindo as demandas do próximo período
         self.customer_demands = self.rand_generator.randint(low=self.demand_range[0],
                                                             high=self.demand_range[1], 
@@ -391,7 +391,7 @@ class SupplyChainEnv(gym.Env):
         
         self.time_step += 1        
 
-        total_cost = 0.0
+        total_cost = 0
 
         next_action_idx = 0
         next_customer = 0
@@ -491,7 +491,7 @@ if __name__ == '__main__':
     supply_capacity  = 50
     processing_ratio = 3
     leadtime    = 2
-    stock_cost  = 0.001
+    stock_cost  = 1
     dest_cost   = 2*stock_cost
     supply_cost = 5*stock_cost
     processing_cost   = 2*supply_cost
