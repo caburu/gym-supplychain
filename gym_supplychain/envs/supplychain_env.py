@@ -453,8 +453,11 @@ class SupplyChainEnv(gym.Env):
         for node in self.nodes:
             nodes_obs += node.build_observation((self.time_step+1, self.time_step+self.leadtime))        
 
-        # A observação é concatenação das demandas com os dados nos nós
+        # A observação tem a concatenação das demandas com os dados nos nós
         obs = np.concatenate((demands_obs, nodes_obs))
+
+        # Por fim, acrescentamos quantos períodos faltam para terminar o episódio (normalizado)
+        obs = np.append(obs, (self.total_time_steps-self.time_step)/self.total_time_steps)
         
         # Por fim, normalizamos o estado para a faixa [-1,1]
         norm_obs = self._normalize_obs(obs)
