@@ -12,7 +12,8 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                  processing_ratio=3, processing_costs=[12,10], 
                  stock_costs=[1]*8, supply_costs=[6,4], dest_cost=2,
                  unmet_demand_cost=216, exceeded_capacity_cost=10,
-                 demand_range=(10,21), leadtime=2, total_time_steps=360, seed=None):
+                 demand_range=(10,21), demand_std=None, demand_sen_peaks=None, 
+                 leadtime=2, total_time_steps=360, seed=None):
 
         if not initial_stocks: # A posição zero é do primeiro fornecedor, e assim por diante
             initial_stocks = [0]*(8)
@@ -43,6 +44,7 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
 
         super().__init__(nodes_info, unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
                          processing_ratio=processing_ratio, demand_range=demand_range,
+                         demand_std=demand_std, demand_sen_peaks=demand_sen_peaks,
                          total_time_steps=total_time_steps, leadtime=leadtime, seed=seed)
 
 if __name__ == '__main__':

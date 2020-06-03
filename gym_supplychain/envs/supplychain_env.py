@@ -4,6 +4,8 @@ from collections import deque
 import gym
 from gym import spaces
 
+from gym_supplychain.envs.demands_generator import generate_demand
+
 class SC_Action:
     """ Define uma ação do ambiente da Cadeia de Suprimentos.
 
@@ -292,7 +294,8 @@ class SupplyChainEnv(gym.Env):
     """
     #metadata = {'render.modes': ['human']}
     def __init__(self, nodes_info, unmet_demand_cost=1000, exceeded_capacity_cost=1000,
-                 demand_range=(10,21), processing_ratio=3, leadtime=2, total_time_steps=360, seed=None):
+                 demand_range=(10,21), demand_std=None, demand_sen_peaks=None, 
+                 processing_ratio=3, leadtime=2, total_time_steps=360, seed=None):
                  
         self.DEBUG = True
         
@@ -339,6 +342,8 @@ class SupplyChainEnv(gym.Env):
         self.leadtime = leadtime
         self.rand_generator = np.random.RandomState(seed)
         self.demand_range = demand_range
+        self.demand_std = demand_std
+        self.demand_sen_peaks = demand_sen_peaks
 
         # Definição dos espaços de ações e de estados
         action_space_size = 0
@@ -361,9 +366,7 @@ class SupplyChainEnv(gym.Env):
         self.current_reward = 0
         self.episode_rewards = 0
         # definindo as demandas do próximo período
-        self.customer_demands = self.rand_generator.randint(low=self.demand_range[0],
-                                                            high=self.demand_range[1], 
-                                                            size=len(self.last_level_nodes))        
+        self.customer_demands = self._generate_next_demands()        
         
         self.current_state = self._build_observation()
 
@@ -371,6 +374,11 @@ class SupplyChainEnv(gym.Env):
         self.est_episode = self._initial_est_episode()
 
         return self.current_state
+    
+    def _generate_next_demands(self):
+        return generate_demand(self.rand_generator, len(self.last_level_nodes), self.time_step,
+                                self.total_time_steps, self.demand_range[0], self.demand_range[1]-1,
+                                std=self.demand_std, sen_peaks=self.demand_sen_peaks)
     
     def _initial_est_episode(self):
         return {'rewards':0, 
@@ -407,9 +415,7 @@ class SupplyChainEnv(gym.Env):
             total_cost += cost
 
         # definindo as demandas do próximo período
-        self.customer_demands = self.rand_generator.randint(low=self.demand_range[0],
-                                                    high=self.demand_range[1], 
-                                                    size=len(self.last_level_nodes))
+        self.customer_demands = self._generate_next_demands()
 
         self.current_reward = -total_cost
         self.episode_rewards += self.current_reward

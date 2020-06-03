@@ -33,7 +33,7 @@ def generate_demand(rand_generator, num_demands, period, horizon, minv, maxv, st
 def uniform_data(rand_generator, minv, maxv, num_demands):
     """ Gera a quantidade de demandas solicitadas a partir de uma distribuição uniforme
         dentro da faixa passada [minv,maxv] """
-    return rand_generator.randint(low=minv, high=maxv, size=num_demands)
+    return rand_generator.randint(low=minv, high=maxv+1, size=num_demands)
 
 def normal_data(rand_generator, num_demands, minv, maxv, std):
     """ Gera a quantidade de demandas solicitadas a partir do valor média da faixa passada
