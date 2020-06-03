@@ -39,6 +39,7 @@ def normal_data(rand_generator, num_demands, minv, maxv, std):
     """ Gera a quantidade de demandas solicitadas a partir do valor média da faixa passada
         com um perturbação dada pela distribuição normal com média zero e desvio padrão """
     data = rand_generator.normal((maxv+minv)/2, std, size=num_demands)
+    data = np.round(data)
     for i in range(len(data)):
         data[i] = cut_limit_data(data[i], minv, maxv)
     return data
@@ -59,6 +60,9 @@ def senoidal_data(rand_generator, period, horizon=360, minv=0, maxv=100, std=5, 
 
     avg_value = curve_min + curve_range/2 + (curve_range/2)*np.sin(num_peaks*2*np.pi*period/horizon)
     sto_value = avg_value + rand_generator.normal(0, std)
+
+    avg_value = int(round(avg_value))
+    sto_value = int(round(sto_value))
 
     sto_value = cut_limit_data(sto_value, minv, maxv)
 
