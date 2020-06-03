@@ -1,10 +1,21 @@
 import numpy as np
 
-
-
-def generate_demand(rand_generator, num_demands, period, horizon, minv, maxv, std=None, num_peaks=None):
-    # Se não passou número de picos não é uma função senoidal
-    if num_peaks is None:
+def generate_demand(rand_generator, num_demands, period, horizon, minv, maxv, std=None, sen_peaks=None):
+    """ Gerador de demandas aleatórios (distr. uniforme, normal ou senoidal)
+        A função gera a demanda para um único período para vários clientes.
+        
+        :param rand_generator: (numpy random) Gerador de números aleatórios utilizado.
+        :param num_demands: (int) Quantidade de demandas a serem geradas (número de clientes).
+        :param period: (int) Período para o qual as demandas serão geradas.
+        :param horizon: (int) Horizonte (tamanho do episódio), ou seja, número máximo de períodos.        
+        :param minv: (int) Menor valor possível de demanda.
+        :param maxv: (int) Maior valor possível de demanda.
+        :param std: (float) Desvio padrão da distribuição Normal utilizada (se `None` será distribuição uniforme).
+        :param sen_peaks: (int) Número de picos da função senoidal (se `None` não será uma senoidal).
+        :return: (tuple) As demandas geradas.
+    """
+    # Se não passou número de picos de senoidal não é uma função senoidal
+    if sen_peaks is None:
         # Se não passou desvio padrão é porque é distribuição uniforme
         if std is None:
             return uniform_data(rand_generator, minv, maxv, num_demands)
@@ -16,13 +27,17 @@ def generate_demand(rand_generator, num_demands, period, horizon, minv, maxv, st
         std = 0 if std is None else std
         demands = np.zeros(num_demands)
         for i in range(num_demands):
-            demands[i], _ = senoidal_data(rand_generator, period, horizon, minv, maxv, std, num_peaks)
+            demands[i], _ = senoidal_data(rand_generator, period, horizon, minv, maxv, std, sen_peaks)
         return demands
 
 def uniform_data(rand_generator, minv, maxv, num_demands):
+    """ Gera a quantidade de demandas solicitadas a partir de uma distribuição uniforme
+        dentro da faixa passada [minv,maxv] """
     return rand_generator.randint(low=minv, high=maxv, size=num_demands)
 
 def normal_data(rand_generator, num_demands, minv, maxv, std):
+    """ Gera a quantidade de demandas solicitadas a partir do valor média da faixa passada
+        com um perturbação dada pela distribuição normal com média zero e desvio padrão """
     data = rand_generator.normal((maxv+minv)/2, std, size=num_demands)
     for i in range(len(data)):
         data[i] = cut_limit_data(data[i], minv, maxv)
@@ -67,9 +82,9 @@ if __name__ == '__main__':
     nor_data = []
     sen_data = []
     for i in range(H):
-        uni_data.append(generate_demand(rand_generator, num_demands, i, H, 0, 100, std=None, num_peaks=None))
-        nor_data.append(generate_demand(rand_generator, num_demands, i, H, 0, 100, std=15, num_peaks=None))
-        sen_data.append(generate_demand(rand_generator, num_demands, i, H, 0, 100, std=5, num_peaks=4))
+        uni_data.append(generate_demand(rand_generator, num_demands, i, H, 0, 100, std=None, sen_peaks=None))
+        nor_data.append(generate_demand(rand_generator, num_demands, i, H, 0, 100, std=15, sen_peaks=None))
+        sen_data.append(generate_demand(rand_generator, num_demands, i, H, 0, 100, std=5, sen_peaks=4))
     # print(data)
     # print(avg_data)
     for i in range(2):
