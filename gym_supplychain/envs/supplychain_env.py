@@ -110,7 +110,7 @@ class SC_Node:
         - Uma fila de material para chegar.
     """
     def __init__(self, label, initial_stock=0, initial_supply=None, initial_shipments=None, 
-                 stock_capacity=0, supply_capacity=0, processing_ratio=0,
+                 stock_capacity=0, supply_capacity=0, processing_capacity=0, processing_ratio=0,
                  last_level=False, stock_cost=0, supply_cost=0, processing_cost=0, 
                  exceeded_capacity_cost=1,unmet_demand_cost=1):
         self.label = label
@@ -120,6 +120,7 @@ class SC_Node:
         if supply_capacity > 0:
             self.supply_action = SC_Action('SUPPLY', capacity=supply_capacity, costs=supply_cost)
             self.num_actions += 1
+        self.processing_capacity = processing_capacity
         self.last_level = last_level
         
         self.initial_stock = initial_stock
@@ -155,18 +156,33 @@ class SC_Node:
         if self.processing_ratio > 0:
             # A matéria-prima que chegou é somada com matéria-prima anterior que
             # pode ter sobrado como resto do processamento
-            material = arrived_material+self.pending_material
-            amount = material // self.processing_ratio
-            # Calcula o novo resto do processamento
-            self.pending_material = material % self.processing_ratio
+            raw_material = arrived_material+self.pending_material
+
+            # Se chegou mais matéria-prima na fábrica do que ela é capaz de processar,
+            # um custo de penalização é calculado e o material excedente é perdido.
+            if raw_material > self.processing_capacity:
+                self.est_costs['processing_penalty'] = self.exceeded_capacity_cost*(raw_material - self.processing_capacity)
+                self.est_units['processing_penalty'] = raw_material - self.processing_capacity
+                total_cost += self.est_costs['processing_penalty']
+                raw_material = self.processing_capacity
+            else:
+                self.est_costs['processing_penalty'] = 0
+                self.est_units['processing_penalty'] = 0
+
+            # Calcula a quantidade de produto gerado
+            new_product = raw_material // self.processing_ratio
+            # Calcula o novo resto de matéria-prima do processamento
+            self.pending_material = raw_material % self.processing_ratio
             # Calcula o custo de processamento (calculado por unidade de matéria-prima usada)
-            self.est_costs['processing'] = (material-self.pending_material) * self.processing_cost
-            self.est_units['processing'] = (material-self.pending_material)
+            self.est_costs['processing'] = (raw_material-self.pending_material) * self.processing_cost
+            self.est_units['processing'] = (raw_material-self.pending_material)
             total_cost += self.est_costs['processing']            
-            self.stock += amount
+            self.stock += new_product
         else:
             self.stock += arrived_material
-            
+        
+        # Se a quantidade de material que tinha no estoque mais o que chegou for maior que a
+        # capacidade, um custo de penalização é gerado e o material excedente é perdido.
         if self.stock > self.stock_capacity:
             self.est_costs['stock_penalty'] = self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
             self.est_units['stock_penalty'] = self.stock - self.stock_capacity
@@ -176,43 +192,47 @@ class SC_Node:
             self.est_costs['stock_penalty'] = 0
             self.est_units['stock_penalty'] = 0
                 
-        #debug = ''
+        # Se o nó é um fornecedor, executa a ação de fornecimento
         next_action_idx = 0
-        # O próximo passo é executar as ações referentes ao nó da cadeia
         if self.supply_action:
+            # A aplicação da ação retorna a quantidade de material a ser fornecido e o custo da operação
             amount, cost = self.supply_action.apply(action_values[next_action_idx])
             next_action_idx += 1
-            if amount > 0:
+            # adiciona o material para ser fornecido
+            if amount > 0: 
                 self.shipments.appendleft((time_step+leadtime, amount))
-            #debug += str(amount)+'='+str(cost)+' + '
+            # Contabiliza os custos e estatísticas
             self.est_costs['supply'] = cost
             self.est_units['supply'] = amount
             total_cost += self.est_costs['supply']                   
 
+        # Executa a ação de envio de material para o próximo estágio da cadeia
         if self.ship_action:
+            # A aplicação da ação retorna a quantidade de material a ser enviado para cada destino 
+            # e o custo de cada da operação
             amounts, costs = self.ship_action.apply(action_values[next_action_idx:], max=self.stock)
             self.stock -= sum(amounts)
+            # Trata o envio dos materiais
             for i in range(len(self.dests)):
                 if amounts[i] > 0:
                     self.dests[i]._ship_material(time_step+leadtime, amounts[i])
-            #debug += str(sum(amounts))+'='+str(sum(costs))+' + '
+            # Contabiliza os custos e estatísticas
             self.est_costs['ship'] = sum(costs)
             self.est_units['ship'] = sum(amounts)
             total_cost += self.est_costs['ship']  
-            
+        # Sé um revendedor (nó de último nível) atende a demanda do cliente (o que for possível)
         elif self.last_level:
             max_possible = min(self.stock, customer_demand)
             self.stock -= max_possible
+            # Contabiliza os custos e estatísticas
             self.est_costs['unmet_dem'] = self.unmet_demand_cost * (customer_demand - max_possible)
             self.est_units['unmet_dem'] = customer_demand - max_possible
             total_cost += self.est_costs['unmet_dem']     
 
+        # Contabiliza os custos e estatísticas do material que ficou em estoque
         self.est_costs['stock'] = self.stock*self.stock_cost
         self.est_units['stock'] = self.stock
         total_cost += self.est_costs['stock']
-
-        #debug += str(self.stock)+'='+str(self.stock*self.stock_cost)+' + '
-        #print('CUSTO', self.label, debug)
 
         return total_cost
 
@@ -233,8 +253,8 @@ class SC_Node:
             self.pending_material = 0
         
         # Atributos estatísticos para depuração
-        self.est_costs = {'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'ship':0, 'unmet_dem':0}
-        self.est_units = {'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'ship':0, 'unmet_dem':0} 
+        self.est_costs = {'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'processing_penalty':0, 'ship':0, 'unmet_dem':0}
+        self.est_units = {'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'processing_penalty':0, 'ship':0, 'unmet_dem':0} 
 
     def num_expected_actions(self):
         return self.num_actions
@@ -318,6 +338,7 @@ class SupplyChainEnv(gym.Env):
                                initial_shipments=node_info.get('initial_shipments', None),
                                stock_capacity=node_info.get('stock_capacity', float('inf')),
                                supply_capacity=node_info.get('supply_capacity', 0),
+                               processing_capacity=node_info.get('processing_capacity', 0),                               
                                processing_ratio=node_processing_ratio,
                                last_level=node_info.get('last_level', False),
                                stock_cost=node_info.get('stock_cost', 0),
@@ -383,9 +404,9 @@ class SupplyChainEnv(gym.Env):
     def _initial_est_episode(self):
         return {'rewards':0, 
                 'costs':{
-                    'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'ship':0, 'unmet_dem':0},
+                    'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'processing_penalty':0, 'ship':0, 'unmet_dem':0},
                 'units':{
-                    'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'ship':0, 'unmet_dem':0}
+                    'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'processing_penalty':0, 'ship':0, 'unmet_dem':0}
                 }
         
     def _denormalize_action(self, action):
@@ -495,6 +516,7 @@ if __name__ == '__main__':
     demand_range     = (10,21)
     stock_capacity   = 300
     supply_capacity  = 50
+    processing_capacity = 50
     processing_ratio = 3
     leadtime    = 2
     stock_cost  = 1
@@ -520,10 +542,10 @@ if __name__ == '__main__':
                                 'supply_capacity':supply_capacity, 'supply_cost':supply_cost,
                                 'destinations':['Factory  1', 'Factory  2'], 'dest_costs':[dest_cost]*2}
     nodes_info['Factory  1'] = {'initial_stock':0, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
-                                'processing_cost':processing_cost,
+                                'processing_capacity':processing_capacity, 'processing_cost':processing_cost,
                                 'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[dest_cost]*2}
     nodes_info['Factory  2'] = {'initial_stock':0, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
-                                'processing_cost':processing_cost,
+                                'processing_capacity':processing_capacity, 'processing_cost':processing_cost,
                                 'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[dest_cost]*2}
     nodes_info['Wholesal 1'] = {'initial_stock':10, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'destinations':['Retailer 1', 'Retailer 2'], 'dest_costs':[dest_cost]*2}
