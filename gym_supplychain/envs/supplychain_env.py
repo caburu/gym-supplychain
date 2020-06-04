@@ -370,7 +370,7 @@ class SupplyChainEnv(gym.Env):
         action_space_size = 0
         for node in self.nodes:
             action_space_size += node.num_expected_actions()
-        obs_space_size = len(self.last_level_nodes)+len(self.nodes)*(1+leadtime)
+        obs_space_size = len(self.last_level_nodes)+len(self.nodes)*(1+leadtime)+1
 
         # O action_space é tratado como de [0,1] no código, então quando a ação é recebida o valor
         # é desnormalizado
@@ -438,7 +438,7 @@ class SupplyChainEnv(gym.Env):
         # definindo as demandas do próximo período
         self.customer_demands = self._generate_next_demands()
 
-        self.current_reward = -total_cost
+        self.current_reward = int(-total_cost) # convertendo pra inteiro pra não usar tipo do Numpy
         self.episode_rewards += self.current_reward
         self.current_state = self._build_observation()
 
