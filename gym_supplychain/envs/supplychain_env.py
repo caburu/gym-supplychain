@@ -4,6 +4,8 @@ from collections import deque
 import gym
 from gym import spaces
 
+import warnings
+
 from gym_supplychain.envs.demands_generator import generate_demand
 
 class SC_Action:
@@ -414,8 +416,15 @@ class SupplyChainEnv(gym.Env):
         
     def _normalize_obs(self, obs):
         return obs*2 - 1
+        
+    def _invalid_action(self, action):
+        return np.isnan(np.sum(action))
 
     def step(self, action):
+        if self._invalid_action(action):
+            warnings.warn('Acao invalida. Valor NaN')
+            return np.zeros(self.observation_space.shape), -float("inf"), True, {'error':'Invalid action'}
+    
         action = self._denormalize_action(action)
         
         self.time_step += 1        
