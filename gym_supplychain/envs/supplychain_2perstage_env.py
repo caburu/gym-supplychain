@@ -47,6 +47,28 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                          demand_std=demand_std, demand_sen_peaks=demand_sen_peaks,
                          total_time_steps=total_time_steps, leadtime=leadtime, seed=seed)
 
+
+class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
+    """ Classe atalho para criar uma cadeia 2perStage com demandas sazonais """
+    def __init__(self, initial_stocks=[200]*8, initial_supply=[150]*2+[210]*2, 
+                         initial_shipments=[150]*2+[210]*2+[60,60]*4,
+                         supply_capacities=[150,210], processing_capacities=[210,240], stock_capacities=[400,450]*4,
+                         processing_ratio=3, processing_costs=[12,10], 
+                         stock_costs=[1]*8, supply_costs=[6,4], dest_cost=2,
+                         unmet_demand_cost=216, exceeded_capacity_cost=10,
+                         demand_range=(0,101), demand_std=5, demand_sen_peaks=4,
+                         leadtime=2, total_time_steps=360, seed=None):
+
+        super().__init__(initial_stocks=initial_stocks, initial_supply=initial_supply, 
+                         initial_shipments=initial_shipments,
+                         supply_capacities=supply_capacities, processing_capacities=processing_capacities, 
+                         stock_capacities=stock_capacities,
+                         processing_ratio=processing_ratio, processing_costs=processing_costs, 
+                         stock_costs=stock_costs, supply_costs=supply_costs, dest_cost=dest_cost,
+                         unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
+                         demand_range=demand_range, demand_std=demand_std, demand_sen_peaks=demand_sen_peaks,
+                         leadtime=leadtime, total_time_steps=total_time_steps, seed=seed)
+
 if __name__ == '__main__':
     episodes = 2
     total_time_steps = 5
