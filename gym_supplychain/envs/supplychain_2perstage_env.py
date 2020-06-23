@@ -13,7 +13,7 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                  stock_costs=[1]*8, supply_costs=[6,4], dest_cost=2,
                  unmet_demand_cost=216, exceeded_capacity_cost=10,
                  demand_range=(10,21), demand_std=None, demand_sen_peaks=None, 
-                 leadtime=2, total_time_steps=360, seed=None):
+                 leadtime=2, total_time_steps=360, seed=None, build_info=False, check_actions=False):
 
         if not initial_stocks: # A posição zero é do primeiro fornecedor, e assim por diante
             initial_stocks = [0]*(8)
@@ -45,7 +45,8 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
         super().__init__(nodes_info, unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
                          processing_ratio=processing_ratio, demand_range=demand_range,
                          demand_std=demand_std, demand_sen_peaks=demand_sen_peaks,
-                         total_time_steps=total_time_steps, leadtime=leadtime, seed=seed)
+                         total_time_steps=total_time_steps, leadtime=leadtime, seed=seed,
+                         build_info=build_info, check_actions=build_info)
 
 
 class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
@@ -57,7 +58,7 @@ class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
                          stock_costs=[1]*8, supply_costs=[6,4], dest_cost=2,
                          unmet_demand_cost=216, exceeded_capacity_cost=10,
                          demand_range=(0,101), demand_std=5, demand_sen_peaks=4,
-                         leadtime=2, total_time_steps=360, seed=None):
+                         leadtime=2, total_time_steps=360, seed=None, build_info=False, check_actions=False):
 
         super().__init__(initial_stocks=initial_stocks, initial_supply=initial_supply, 
                          initial_shipments=initial_shipments,
@@ -67,7 +68,8 @@ class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
                          stock_costs=stock_costs, supply_costs=supply_costs, dest_cost=dest_cost,
                          unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
                          demand_range=demand_range, demand_std=demand_std, demand_sen_peaks=demand_sen_peaks,
-                         leadtime=leadtime, total_time_steps=total_time_steps, seed=seed)
+                         leadtime=leadtime, total_time_steps=total_time_steps, seed=seed,
+                         build_info=build_info, check_actions=check_actions)
 
 if __name__ == '__main__':
     episodes = 2
