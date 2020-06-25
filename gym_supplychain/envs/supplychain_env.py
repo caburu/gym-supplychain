@@ -318,7 +318,7 @@ class SupplyChainEnv(gym.Env):
     def __init__(self, nodes_info, unmet_demand_cost=1000, exceeded_capacity_cost=1000,
                  demand_range=(10,21), demand_std=None, demand_sen_peaks=None, 
                  processing_ratio=3, leadtime=2, total_time_steps=360, seed=None,
-                 build_info=False, check_actions=False):
+                 build_info=False, check_actions=False, demand_perturb_norm=False):
         
         def create_nodes(nodes_info):
             nodes_dict = {}
@@ -371,6 +371,7 @@ class SupplyChainEnv(gym.Env):
         self.demand_range_value = demand_range[1]-self.demand_range[0]-1
         self.demand_std = demand_std
         self.demand_sen_peaks = demand_sen_peaks
+        self.demand_perturb_norm = demand_perturb_norm
 
         # Não suporta demanda fixa (apenas para evitar ficar fazendo if toda hora 
         # para testar isso na hora de montar o estado)
@@ -399,7 +400,8 @@ class SupplyChainEnv(gym.Env):
         # gerando as demandas de todo o episódio
         self.customer_demands = generate_demand(self.rand_generator, (self.total_time_steps+1, len(self.last_level_nodes)), 
                                                 self.total_time_steps, self.demand_range[0], self.demand_range[1]-1,
-                                                std=self.demand_std, sen_peaks=self.demand_sen_peaks)
+                                                std=self.demand_std, sen_peaks=self.demand_sen_peaks,
+                                                perturb_norm=self.demand_perturb_norm)
         
         self.current_state = self._build_observation()
 
