@@ -47,7 +47,7 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                          processing_ratio=processing_ratio, demand_range=demand_range,
                          demand_std=demand_std, demand_sen_peaks=demand_sen_peaks,
                          total_time_steps=total_time_steps, leadtime=leadtime, seed=seed,
-                         build_info=build_info, check_actions=build_info, demand_perturb_norm = demand_perturb_norm)
+                         build_info=build_info, check_actions=check_actions, demand_perturb_norm = demand_perturb_norm)
 
 
 class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
