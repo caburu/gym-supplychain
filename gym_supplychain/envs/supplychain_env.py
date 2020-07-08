@@ -45,7 +45,8 @@ class SC_Action:
                 limit = self.capacity
             else:
                 limit = min(self.capacity, max)
-            supplied_amount = round(action_values*limit)
+            # supplied_amount = round(action_values*limit)
+            supplied_amount = action_values*limit
             return supplied_amount, supplied_amount*self.costs
         elif self.action_type == 'SHIP':
             
@@ -74,15 +75,16 @@ class SC_Action:
                     # o corte vai até o valor da ação desse destino
                     final_cut = value 
                     # precisamos arredondar a quantidade de material pois ela é inteira
-                    rounded_amount = round((final_cut-initial_cut)*limit)
+                    # amount = round((final_cut-initial_cut)*limit)
+                    amount = (final_cut-initial_cut)*limit
                     # tratamento para evitar problemas de arredondamento
-                    if rounded_amount > available:
-                        rounded_amount = available
+                    if amount > available:
+                        amount = available
                     # guardando a quantidad (e o custo) referentes a o destino em questão
-                    returns[idx]= rounded_amount
-                    costs[idx] = rounded_amount*self.costs[idx]
+                    returns[idx]= amount
+                    costs[idx] = amount*self.costs[idx]
                     # descontamos agora a quantidade de material disponível
-                    available -= rounded_amount
+                    available -= amount
                     # e o próximo corte começa onde terminou esse
                     initial_cut = final_cut
 
@@ -131,7 +133,7 @@ class SC_Node:
         
         self.processing_ratio = processing_ratio
         self.processing_cost = processing_cost
-        self.pending_material = 0
+        # self.pending_material = 0.0
         self.dest = None
         self.shipments = deque()        
 
@@ -141,9 +143,9 @@ class SC_Node:
         self.num_actions += len(self.dests)
 
     def act(self, action_values, leadtime, time_step, customer_demand=None):
-        total_cost = 0
+        total_cost = 0.0
 
-        arrived_material = 0
+        arrived_material = 0.0
         # O primeiro passo é receber o material que está pra chegar
         while self.shipments and  self.shipments[-1][0] == time_step:
             _, amount = self.shipments.pop()
@@ -153,13 +155,17 @@ class SC_Node:
         if self.processing_ratio > 0:
             # A matéria-prima que chegou é somada com matéria-prima anterior que
             # pode ter sobrado como resto do processamento
-            material = arrived_material+self.pending_material
-            amount = material // self.processing_ratio
+            # material = arrived_material+self.pending_material
+            material = arrived_material
+            # amount = material // self.processing_ratio
+            amount = material / self.processing_ratio
             # Calcula o novo resto do processamento
-            self.pending_material = material % self.processing_ratio
+            # self.pending_material = material % self.processing_ratio
             # Calcula o custo de processamento (calculado por unidade de matéria-prima usada)
-            self.est_costs['processing'] = (material-self.pending_material) * self.processing_cost
-            self.est_units['processing'] = (material-self.pending_material)
+            # self.est_costs['processing'] = (material-self.pending_material) * self.processing_cost
+            # self.est_units['processing'] = (material-self.pending_material)
+            self.est_costs['processing'] = material * self.processing_cost
+            self.est_units['processing'] = material
             total_cost += self.est_costs['processing']            
             self.stock += amount
         else:
@@ -227,12 +233,12 @@ class SC_Node:
             for i in range(len(self.initial_shipments)):
                 self.shipments.appendleft((i+1, self.initial_shipments[i]))
         
-        if self.processing_ratio > 0:
-            self.pending_material = 0
+        # if self.processing_ratio > 0:
+        #    self.pending_material = 0
         
         # Atributos estatísticos para depuração
-        self.est_costs = {'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'ship':0, 'unmet_dem':0}
-        self.est_units = {'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'ship':0, 'unmet_dem':0} 
+        self.est_costs = {'stock':0.0, 'stock_penalty':0.0, 'supply':0.0, 'processing':0.0, 'ship':0.0, 'unmet_dem':0.0}
+        self.est_units = {'stock':0.0, 'stock_penalty':0.0, 'supply':0.0, 'processing':0.0, 'ship':0.0, 'unmet_dem':0.0} 
 
     def num_expected_actions(self):
         return self.num_actions
@@ -256,8 +262,8 @@ class SC_Node:
         # a primeira informação é o estoque atual.
         # - No caso das fábricas inclui a fração de matéria-prima pendente (se existir)
         current_stock = self.stock
-        if self.processing_ratio > 0:
-            current_stock += self.pending_material/self.processing_ratio
+        # if self.processing_ratio > 0:
+        #     current_stock += self.pending_material/self.processing_ratio
 
         obs = [current_stock/self.stock_capacity]
 
@@ -284,7 +290,7 @@ class SC_Node:
         for i in range(len(self.shipments)):
             desc += str(self.shipments[i]) + ' - '
         desc += '[' + str(self.stock) + '] '
-        if self.processing_ratio > 0: desc += '+' + str(self.pending_material) + ' '
+        # if self.processing_ratio > 0: desc += '+' + str(self.pending_material) + ' '
         return desc
 
 class SupplyChainEnv(gym.Env):
@@ -310,11 +316,11 @@ class SupplyChainEnv(gym.Env):
                     node_processing_ratio = 0
                     
                 node = SC_Node(node_name,
-                               initial_stock=node_info.get('initial_stock', 0),
+                               initial_stock=node_info.get('initial_stock', 0.0),
                                initial_supply=node_info.get('initial_supply', None),
                                initial_shipments=node_info.get('initial_shipments', None),
                                stock_capacity=node_info.get('stock_capacity', float('inf')),
-                               supply_capacity=node_info.get('supply_capacity', 0),
+                               supply_capacity=node_info.get('supply_capacity', 0.0),
                                processing_ratio=node_processing_ratio,
                                last_level=node_info.get('last_level', False),
                                stock_cost=node_info.get('stock_cost', 0.0),
@@ -373,11 +379,11 @@ class SupplyChainEnv(gym.Env):
         return self.current_state
     
     def _initial_est_episode(self):
-        return {'rewards':0, 
+        return {'rewards':0.0, 
                 'costs':{
-                    'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'ship':0, 'unmet_dem':0},
+                    'stock':0.0, 'stock_penalty':0.0, 'supply':0.0, 'processing':0.0, 'ship':0.0, 'unmet_dem':0.0},
                 'units':{
-                    'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'ship':0, 'unmet_dem':0}
+                    'stock':0.0, 'stock_penalty':0.0, 'supply':0.0, 'processing':0.0, 'ship':0.0, 'unmet_dem':0.0}
                 }
         
     def _denormalize_action(self, action):
