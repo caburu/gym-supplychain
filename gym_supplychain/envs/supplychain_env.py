@@ -4,6 +4,8 @@ from collections import deque
 import gym
 from gym import spaces
 
+from gym_supplychain.envs.demands_generator import generate_demand
+
 class SC_Action:
     """ Define uma ação do ambiente da Cadeia de Suprimentos.
 
@@ -298,7 +300,9 @@ class SupplyChainEnv(gym.Env):
     """
     #metadata = {'render.modes': ['human']}
     def __init__(self, nodes_info, unmet_demand_cost=1.0, exceeded_capacity_cost=1.0,
-                 demand_range=(10,21), processing_ratio=3, leadtime=2, total_time_steps=360, seed=None):
+                 demand_range=(10,21), demand_std=None, demand_sen_peaks=None, 
+		  processing_ratio=3, leadtime=2, total_time_steps=360, seed=None,
+                 demand_perturb_norm=False):
                  
         self.DEBUG = True
         
@@ -345,6 +349,14 @@ class SupplyChainEnv(gym.Env):
         self.leadtime = leadtime
         self.rand_generator = np.random.RandomState(seed)
         self.demand_range = demand_range
+        self.demand_range_value = demand_range[1]-self.demand_range[0]-1
+        self.demand_std = demand_std
+        self.demand_sen_peaks = demand_sen_peaks
+        self.demand_perturb_norm = demand_perturb_norm
+
+        # Não suporta demanda fixa (apenas para evitar ficar fazendo if toda hora 
+        # para testar isso na hora de montar o estado)
+        assert self.demand_range[0] != self.demand_range[1]-1
 
         # Definição dos espaços de ações e de estados
         action_space_size = 0
@@ -366,10 +378,11 @@ class SupplyChainEnv(gym.Env):
 
         self.current_reward = 0.0
         self.episode_rewards = 0.0
-        # definindo as demandas do próximo período
-        self.customer_demands = self.rand_generator.randint(low=self.demand_range[0],
-                                                            high=self.demand_range[1], 
-                                                            size=len(self.last_level_nodes))        
+        # gerando as demandas de todo o episódio
+        self.customer_demands = generate_demand(self.rand_generator, (self.total_time_steps+1, len(self.last_level_nodes)), 
+                                                self.total_time_steps, self.demand_range[0], self.demand_range[1]-1,
+                                                std=self.demand_std, sen_peaks=self.demand_sen_peaks,
+                                                perturb_norm=self.demand_perturb_norm)
         
         self.current_state = self._build_observation()
 
@@ -405,17 +418,12 @@ class SupplyChainEnv(gym.Env):
             actions_to_apply = action[next_action_idx:next_action_idx+node.num_expected_actions()]
             next_action_idx += node.num_expected_actions()
             if node.last_level:
-                demand = self.customer_demands[next_customer]
+                demand = self.customer_demands[self.time_step-1, next_customer]
                 next_customer += 1
             else:
                 demand = None
             cost = node.act(actions_to_apply, self.leadtime, self.time_step, customer_demand=demand)
             total_cost += cost
-
-        # definindo as demandas do próximo período
-        self.customer_demands = self.rand_generator.randint(low=self.demand_range[0],
-                                                    high=self.demand_range[1], 
-                                                    size=len(self.last_level_nodes))
 
         self.current_reward = -total_cost
         self.episode_rewards += self.current_reward
@@ -427,7 +435,7 @@ class SupplyChainEnv(gym.Env):
         
         self.current_info = self._build_return_info()
         
-        #print(self.customer_demands[0], ',', self.customer_demands[1], ',', end=' ')
+        #print(self.customer_demands[self.time_step,:], end=' ')
 
         return (self.current_state, self.current_reward, is_terminal, self.current_info)
 
@@ -449,10 +457,10 @@ class SupplyChainEnv(gym.Env):
                 - O quanto de material está chegando nos períodos seguintes.
         """ 
         # Primeiro guardamos as demandas (normalizadas)
-        if self.demand_range[0] != self.demand_range[1]-1:
-            demands_obs = (self.customer_demands - self.demand_range[0])/(self.demand_range[1]-self.demand_range[0]-1)
-        else:
-            demands_obs = [0]*len(self.customer_demands)
+        #if self.demand_range[0] != self.demand_range[1]-1:
+        demands_obs = (self.customer_demands[self.time_step,:] - self.demand_range[0])/(self.demand_range_value)
+        #else:
+        #    demands_obs = [0]*len(self.customer_demands[self.time_step,:])
             
         # Depois pegamos os dados de cada nó
         nodes_obs = []
@@ -478,7 +486,7 @@ class SupplyChainEnv(gym.Env):
         for node in self.nodes:
             node.render()
             print()                 
-        print('Next demands  :', self.customer_demands)
+        print('Next demands  :', self.customer_demands[self.time_step,:])
         print('Current state :', self.current_state)
         print('Current reward:', round(self.current_reward,3))
         #if self.DEBUG:
@@ -495,7 +503,7 @@ if __name__ == '__main__':
     supply_capacity  = 50
     processing_ratio = 3
     leadtime    = 2
-    stock_cost  = 0.001
+    stock_cost  = 1
     dest_cost   = 2*stock_cost
     supply_cost = 5*stock_cost
     processing_cost   = 2*supply_cost
@@ -535,6 +543,8 @@ if __name__ == '__main__':
     env = SupplyChainEnv(nodes_info, demand_range=demand_range, unmet_demand_cost=unmet_demand_cost, 
                          exceeded_capacity_cost=exceeded_capacity_cost, processing_ratio=processing_ratio, 
                          leadtime=leadtime, total_time_steps=total_time_steps)
+    env.action_space.seed(0)
+    env.seed(0)
     env.reset()
     env.render()
     done = False
