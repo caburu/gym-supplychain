@@ -8,7 +8,7 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
         - A quantidade inicial de estoque pode ser especificada para cada nó da cadeia.
     """
     def __init__(self, initial_stocks=[0]*8, initial_supply=[60,60]*2, initial_shipments=[60,60]*2 + [20,20]*4,
-                 supply_capacities=[120,150], stock_capacities=[200,300]*4,
+                 supply_capacities=[120,150], processing_capacities=[300,300], stock_capacities=[200,300]*4,
                  processing_ratio=3, processing_costs=[12,10], 
                  stock_costs=[1]*8, supply_costs=[6,4], dest_cost=2,
                  unmet_demand_cost=216, exceeded_capacity_cost=10,
@@ -30,7 +30,7 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
             nodes_info['Factory'+str(i+1)] = {
                 'initial_stock':initial_stocks[2+i], 'initial_shipments':initial_shipments[2*(i):2*(i)+2],
                 'stock_capacity':stock_capacities[2+i], 'stock_cost':stock_costs[2+i],
-                'processing_cost':processing_costs[i],
+                'processing_capacity':processing_capacities[i], 'processing_cost':processing_costs[i],
                 'destinations':['WholeSaler1','WholeSaler2'], 'dest_costs':[dest_cost]*2}
         for i in range(2):
             nodes_info['WholeSaler'+str(i+1)] = {
