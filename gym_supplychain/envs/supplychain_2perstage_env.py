@@ -6,6 +6,10 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
         - A capacidade de estoque é a mesma para todos os nós da cadeia.
         - Os custos são os mesmos para toda a cadeia.
         - A quantidade inicial de estoque pode ser especificada para cada nó da cadeia.
+        
+        Obs: eu havia criado outras classes para configurações específicas, mas acabei não usando.
+        E para não ter que ficar evoluindo código de coisa que não testei acabei removendo os arquivos.
+        Mas até a versão do ICCL2020 ainda tinha (como referência caso seja necessário futuramente).
     """
     def __init__(self, initial_stocks=[0]*8, initial_supply=[60,60]*2, initial_shipments=[60,60]*2 + [20,20]*4,
                  supply_capacities=[120,150], processing_capacities=[300,300], stock_capacities=[200,300]*4,
@@ -71,7 +75,7 @@ class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
                          unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
                          demand_range=demand_range, demand_std=demand_std, demand_sen_peaks=demand_sen_peaks,
                          leadtime=leadtime, total_time_steps=total_time_steps, seed=seed,
-                         build_info=build_info, check_actions=check_actions, demand_perturb_norm=demand_perturb_norm)
+                         build_info=build_info, demand_perturb_norm=demand_perturb_norm)
 
 if __name__ == '__main__':
     episodes = 2
