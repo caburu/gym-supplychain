@@ -13,7 +13,7 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                  stock_costs=[1]*8, supply_costs=[6,4], dest_cost=2,
                  unmet_demand_cost=216, exceeded_capacity_cost=10,
                  demand_range=(10,21), demand_std=None, demand_sen_peaks=None, 
-                 leadtime=2, total_time_steps=360, seed=None,
+                 leadtime=2, total_time_steps=360, seed=None, build_info=False,
                  demand_perturb_norm=False):
 
         if not initial_stocks: # A posição zero é do primeiro fornecedor, e assim por diante
@@ -47,7 +47,7 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                          processing_ratio=processing_ratio, demand_range=demand_range,
                          demand_std=demand_std, demand_sen_peaks=demand_sen_peaks,
                          total_time_steps=total_time_steps, leadtime=leadtime, seed=seed,
-                         demand_perturb_norm = demand_perturb_norm)
+                         build_info=build_info, demand_perturb_norm=demand_perturb_norm)
 
 
 class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
