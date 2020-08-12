@@ -4,8 +4,6 @@ from collections import deque
 import gym
 from gym import spaces
 
-import warnings
-
 from gym_supplychain.envs.demands_generator import generate_demand
 
 class SC_Action:
@@ -27,59 +25,72 @@ class SC_Action:
         # confere se o tipo de ação passado é válido
         assert action_type in ['SUPPLY', 'SHIP']
 
+        # confere se ação de fornecimento e estoque tem capacidade válida e ação de envio tem destino válidos
+        if action_type == 'SUPPLY':
+            assert capacity is not None
+
         self.action_type = action_type
         self.capacity = capacity
         self.costs = costs
 
-        if action_type == 'SUPPLY':
-            assert capacity is not None
-            self.apply = self.apply_supply            
+    def apply(self, action_values, max=None):
+        """ Aplica o valor de ação recebido, podendo ter um limite variável.
+
+            :param action_value: (float or list) valor (ou lista de valores) entre 0 e 1 (porcentagem) referente à ação a ser aplicada.
+            :param max: (int) valor máximo da ação para essa decisão específica.
+            :return: (int or list) retorna o(s) valor(es) inteiro(s) correspondente(s) à ação.
+        """
+        if self.action_type == 'SUPPLY':
+            # No caso de fornecimento basta usar o valor percentual no máximo de
+            # valor inteiro possível (mínimo entre capacidade e máximo recebido)
+            if max is None:
+                limit = self.capacity
+            else:
+                limit = min(self.capacity, max)
+            supplied_amount = action_values*limit
+            return supplied_amount, supplied_amount*self.costs
         elif self.action_type == 'SHIP':
-            assert capacity is None
-            self.apply = self.apply_ship        
-
-    def apply_supply(self, action_values):
-        # No caso de fornecimento basta usar o valor percentual no máximo de
-        # valor inteiro possível (mínimo entre capacidade e máximo recebido)
-        supplied_amount = int(round(action_values*self.capacity))
-        return supplied_amount, supplied_amount*self.costs
-
-    def apply_ship(self, action_values, max):            
-        # Definindo a quantidade máxima de material disponível para envio
-        limit = max
-        available = limit
-                    
-        # Inicializando listas a serem retornadas (quantidades e custos)
-        returns = [0]*len(action_values)
-        costs = [0]*len(action_values)
             
-        # Se tem material para ser enviado
-        if available > 0:
-            # formando tuplas com os valores das ações e o índice do destino
-            tuples = [(action_values[i], i) for i in range(len(action_values))]
-            # ordenando as tuplas pelos valores das ações
-            tuples.sort()
-            
-            # o primeiro corte será de zero até o primeiro valor
-            initial_cut = 0
-            # Para cada valor e destino
-            for value, idx in tuples:
-                # o corte vai até o valor da ação desse destino
-                final_cut = value 
-                # precisamos arredondar a quantidade de material pois ela é inteira
-                rounded_amount = int(round((final_cut-initial_cut)*limit))
-                # tratamento para evitar problemas de arredondamento
-                if rounded_amount > available:
-                    rounded_amount = available
-                # guardando a quantidad (e o custo) referentes a o destino em questão
-                returns[idx]= rounded_amount
-                costs[idx] = rounded_amount*self.costs[idx]
-                # descontamos agora a quantidade de material disponível
-                available -= rounded_amount
-                # e o próximo corte começa onde terminou esse
-                initial_cut = final_cut
+            # Definindo a quantidade máxima de material disponível para envio
+            if self.capacity is None:
+                limit = max
+            else:
+                limit = min(self.capacity, max)
+            available = limit
+                        
+            # Inicializando listas a serem retornadas (quantidades e custos)
+            returns = [0]*len(action_values)
+            costs = [0]*len(action_values)
+                
+            # Se tem material para ser enviado
+            if available > 0:
+                # formando tuplas com os valores das ações e o índice do destino
+                tuples = [(action_values[i], i) for i in range(len(action_values))]
+                # ordenando as tuplas pelos valores das ações
+                tuples.sort()
+                
+                # o primeiro corte será de zero até o primeiro valor
+                initial_cut = 0
+                # Para cada valor e destino
+                for value, idx in tuples:
+                    # o corte vai até o valor da ação desse destino
+                    final_cut = value 
+                    # precisamos arredondar a quantidade de material pois ela é inteira
+                    amount = (final_cut-initial_cut)*limit
+                    # tratamento para evitar problemas de arredondamento
+                    if amount > available:
+                        amount = available
+                    # guardando a quantidade (e o custo) referentes a o destino em questão
+                    returns[idx]= amount
+                    costs[idx] = amount*self.costs[idx]
+                    # descontamos agora a quantidade de material disponível
+                    available -= amount
+                    # e o próximo corte começa onde terminou esse
+                    initial_cut = final_cut
 
-        return returns, costs
+            return returns, costs
+        else:
+            raise NotImplementedError('Unknown action type:' + self.action_type)
 
     def get_type(self):
         return self.action_type
@@ -124,7 +135,6 @@ class SC_Node:
         
         self.processing_ratio = processing_ratio
         self.processing_cost = processing_cost
-        self.pending_material = 0
         self.dest = None
         self.shipments = deque()        
 
@@ -146,31 +156,29 @@ class SC_Node:
         if self.processing_ratio > 0:
             # A matéria-prima que chegou é somada com matéria-prima anterior que
             # pode ter sobrado como resto do processamento
-            raw_material = arrived_material+self.pending_material
+            material = arrived_material
 
             # Se chegou mais matéria-prima na fábrica do que ela é capaz de processar,
             # um custo de penalização é calculado e o material excedente é perdido.
-            if raw_material > self.processing_capacity:
-                total_cost += self.exceeded_capacity_cost*(raw_material - self.processing_capacity)
+            if material > self.processing_capacity:
+                total_cost += self.exceeded_capacity_cost*(material - self.processing_capacity)
                 if self.build_info:
-                    self.est_costs['processing_penalty'] = self.exceeded_capacity_cost*(raw_material - self.processing_capacity)
-                    self.est_units['processing_penalty'] = raw_material - self.processing_capacity                
-                raw_material = self.processing_capacity
+                    self.est_costs['processing_penalty'] = self.exceeded_capacity_cost*(material - self.processing_capacity)
+                    self.est_units['processing_penalty'] = material - self.processing_capacity
+                material = self.processing_capacity
             else:
                 if self.build_info:
                     self.est_costs['processing_penalty'] = 0
                     self.est_units['processing_penalty'] = 0
 
             # Calcula a quantidade de produto gerado
-            new_product = raw_material // self.processing_ratio
+            amount = material / self.processing_ratio
             # Calcula o novo resto de matéria-prima do processamento
-            self.pending_material = raw_material % self.processing_ratio
-            # Calcula o custo de processamento (calculado por unidade de matéria-prima usada)            
-            total_cost += (raw_material-self.pending_material) * self.processing_cost
+            total_cost += material * self.processing_cost
             if self.build_info:
-                self.est_costs['processing'] = (raw_material-self.pending_material) * self.processing_cost
-                self.est_units['processing'] = (raw_material-self.pending_material)
-            self.stock += new_product
+                self.est_costs['processing'] = material * self.processing_cost
+                self.est_units['processing'] = material
+            self.stock += amount
         else:
             self.stock += arrived_material
         
@@ -180,7 +188,7 @@ class SC_Node:
             total_cost += self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
             if self.build_info:
                 self.est_costs['stock_penalty'] = self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
-                self.est_units['stock_penalty'] = self.stock - self.stock_capacity            
+                self.est_units['stock_penalty'] = self.stock - self.stock_capacity
             self.stock = self.stock_capacity
         else:
             if self.build_info:
@@ -194,7 +202,7 @@ class SC_Node:
             amount, cost = self.supply_action.apply(action_values[next_action_idx])
             next_action_idx += 1
             # adiciona o material para ser fornecido
-            if amount > 0: 
+            if amount > 0:
                 self.shipments.appendleft((time_step+leadtime, amount))
             # Contabiliza os custos e estatísticas
             total_cost += cost
@@ -250,13 +258,10 @@ class SC_Node:
             for i in range(len(self.initial_shipments)):
                 self.shipments.appendleft((i+1, self.initial_shipments[i]))
         
-        if self.processing_ratio > 0:
-            self.pending_material = 0
-        
         # Atributos estatísticos para depuração
         if self.build_info:
             self.est_costs = {'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'processing_penalty':0, 'ship':0, 'unmet_dem':0}
-            self.est_units = {'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'processing_penalty':0, 'ship':0, 'unmet_dem':0} 
+            self.est_units = {'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'processing_penalty':0, 'ship':0, 'unmet_dem':0}
 
     def num_expected_actions(self):
         return self.num_actions
@@ -280,8 +285,6 @@ class SC_Node:
         # a primeira informação é o estoque atual.
         # - No caso das fábricas inclui a fração de matéria-prima pendente (se existir)
         current_stock = self.stock
-        if self.processing_ratio > 0:
-            current_stock += self.pending_material/self.processing_ratio
 
         obs = [current_stock/self.stock_capacity]
 
@@ -308,7 +311,6 @@ class SC_Node:
         for i in range(len(self.shipments)):
             desc += str(self.shipments[i]) + ' - '
         desc += '[' + str(self.stock) + '] '
-        if self.processing_ratio > 0: desc += '+' + str(self.pending_material) + ' '
         return desc
 
 class SupplyChainEnv(gym.Env):
@@ -318,7 +320,7 @@ class SupplyChainEnv(gym.Env):
     def __init__(self, nodes_info, unmet_demand_cost=1000, exceeded_capacity_cost=1000,
                  demand_range=(10,21), demand_std=None, demand_sen_peaks=None, 
                  processing_ratio=3, leadtime=2, total_time_steps=360, seed=None,
-                 build_info=False, check_actions=False, demand_perturb_norm=False):
+                 build_info=False, demand_perturb_norm=False):
         
         def create_nodes(nodes_info):
             nodes_dict = {}
@@ -361,7 +363,6 @@ class SupplyChainEnv(gym.Env):
                                              node_info['dest_costs'])
 
         self.build_info    = build_info
-        self.check_actions = check_actions
 
         create_nodes(nodes_info)
         self.total_time_steps = total_time_steps
@@ -426,16 +427,8 @@ class SupplyChainEnv(gym.Env):
         
     def _normalize_obs(self, obs):
         return obs*2 - 1
-        
-    def _invalid_action(self, action):
-        return np.isnan(np.sum(action))
 
     def step(self, action):
-        if self.check_actions:
-            if self._invalid_action(action):
-                warnings.warn('Acao invalida. Valor NaN')
-                return np.zeros(self.observation_space.shape), -float("inf"), True, {'error':'Invalid action'}
-    
         action = self._denormalize_action(action)
         
         self.time_step += 1        
@@ -455,14 +448,14 @@ class SupplyChainEnv(gym.Env):
             cost = node.act(actions_to_apply, self.leadtime, self.time_step, customer_demand=demand)
             total_cost += cost
 
-        self.current_reward = int(-total_cost) # convertendo pra inteiro pra não usar tipo do Numpy
+        self.current_reward = -total_cost
         self.episode_rewards += self.current_reward
         self.current_state = self._build_observation()
 
         is_terminal = self.time_step == self.total_time_steps
 
         if self.build_info:
-            self._update_statistics()            
+            self._update_statistics()     
             self.current_info = self._build_return_info()
         
         #print(self.customer_demands[self.time_step,:], end=' ')
@@ -487,23 +480,19 @@ class SupplyChainEnv(gym.Env):
                 - O quanto de material está chegando nos períodos seguintes.
         """ 
         # Primeiro guardamos as demandas (normalizadas)
-        #if self.demand_range[0] != self.demand_range[1]-1:
         demands_obs = (self.customer_demands[self.time_step,:] - self.demand_range[0])/(self.demand_range_value)
-        #else:
-        #    demands_obs = [0]*len(self.customer_demands[self.time_step,:])
-        obs = demands_obs.tolist()
             
         # Depois pegamos os dados de cada nó
-        next_time_step = self.time_step+1
-        last_time_step = self.time_step+self.leadtime
+        nodes_obs = []
         for node in self.nodes:
-            obs += node.build_observation((next_time_step, last_time_step))
+            nodes_obs += node.build_observation((self.time_step+1, self.time_step+self.leadtime))        
 
-        # Por fim, acrescentamos quantos períodos faltam para terminar o episódio (normalizado)
-        obs.append((self.total_time_steps-self.time_step)/self.total_time_steps)
+        # A observação é concatenação das demandas, com os dados nos nós mais quantos períodos 
+        # faltam para terminar o episódio (normalizado)
+        obs = np.concatenate((demands_obs, nodes_obs, [(self.total_time_steps-self.time_step)/self.total_time_steps]))
         
         # Por fim, normalizamos o estado para a faixa [-1,1]
-        norm_obs = self._normalize_obs(np.array(obs))
+        norm_obs = self._normalize_obs(obs)
 
         return norm_obs
 
@@ -578,7 +567,7 @@ if __name__ == '__main__':
     env.render()
     done = False
     while not done:
-        action = env.action_space.sample()        
+        action = env.action_space.sample()
         _, _, done, _ = env.step(action)
         env.render()
 
