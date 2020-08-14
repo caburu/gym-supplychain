@@ -16,7 +16,8 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                  processing_ratio=3, processing_costs=[12,10], 
                  stock_costs=[1]*8, supply_costs=[6,4], dest_cost=2,
                  unmet_demand_cost=216, exceeded_capacity_cost=10,
-                 demand_range=(10,21), demand_std=None, demand_sen_peaks=None, 
+                 demand_range=(10,20), demand_std=None, demand_sen_peaks=None,
+                 avg_demand_range=None,
                  leadtime=2, total_time_steps=360, seed=None, build_info=False,
                  demand_perturb_norm=False):
 
@@ -50,19 +51,21 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
         super().__init__(nodes_info, unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
                          processing_ratio=processing_ratio, demand_range=demand_range,
                          demand_std=demand_std, demand_sen_peaks=demand_sen_peaks,
+                         avg_demand_range=avg_demand_range,
                          total_time_steps=total_time_steps, leadtime=leadtime, seed=seed,
                          build_info=build_info, demand_perturb_norm=demand_perturb_norm)
 
 
 class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
     """ Classe atalho para criar uma cadeia 2perStage com demandas sazonais """
-    def __init__(self, initial_stocks=[200]*8, initial_supply=[150]*2+[210]*2, 
-                         initial_shipments=[150]*2+[210]*2+[60,60]*4,
-                         supply_capacities=[150,210], processing_capacities=[210,240], stock_capacities=[400,450]*4,
-                         processing_ratio=3, processing_costs=[12,10], 
+    def __init__(self, initial_stocks=[800]*8, initial_supply=[600]*2+[840]*2, 
+                         initial_shipments=[600]*2+[840]*2+[240,240]*4,
+                         supply_capacities=[600,840], processing_capacities=[840,960], stock_capacities=[1600,1800]*4,
+                         processing_ratio=3, processing_costs=[12,10],
                          stock_costs=[1]*8, supply_costs=[6,4], dest_cost=2,
                          unmet_demand_cost=216, exceeded_capacity_cost=10,
-                         demand_range=(0,101), demand_std=5, demand_sen_peaks=4,
+                         demand_range=(0,400), demand_std=5, demand_sen_peaks=4,
+                         avg_demand_range=(150,250),
                          leadtime=2, total_time_steps=360, seed=None, build_info=False, check_actions=False,
                          demand_perturb_norm=True):
 
@@ -74,21 +77,31 @@ class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
                          stock_costs=stock_costs, supply_costs=supply_costs, dest_cost=dest_cost,
                          unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
                          demand_range=demand_range, demand_std=demand_std, demand_sen_peaks=demand_sen_peaks,
+                         avg_demand_range=avg_demand_range,
                          leadtime=leadtime, total_time_steps=total_time_steps, seed=seed,
                          build_info=build_info, demand_perturb_norm=demand_perturb_norm)
 
 if __name__ == '__main__':
-    episodes = 2
-    total_time_steps = 5
 
-    env = SupplyChain2perStageEnv(total_time_steps=total_time_steps)
+    
+    def simulate(env):
+        episodes = 2        
+    
+        for ep in range(episodes):
+                print('\n\nEpisódio:', ep, '\n\n')
+                env.reset()
+                env.render()
+                done = False
+                while not done:
+                    action = env.action_space.sample()
+                    _, _, done, _ = env.step(action)
+                    env.render()
+
+    total_time_steps = 5
+    print('=========== Demanda uniforme ==========\n\n')
+    simulate(SupplyChain2perStageEnv(total_time_steps=total_time_steps))
+    
+    print('\n\n=========== Demanda senoidal ==========\n\n')
+    simulate(SupplyChain2perStageSeasonalEnv(total_time_steps=total_time_steps))
              
-    for ep in range(episodes):
-        print('\n\nEpisódio:', ep, '\n\n')
-        env.reset()
-        env.render()
-        done = False
-        while not done:
-            action = env.action_space.sample()
-            _, _, done, _ = env.step(action)
-            env.render()
+    

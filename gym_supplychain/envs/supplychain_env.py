@@ -318,7 +318,8 @@ class SupplyChainEnv(gym.Env):
     """
     #metadata = {'render.modes': ['human']}
     def __init__(self, nodes_info, unmet_demand_cost=1000, exceeded_capacity_cost=1000,
-                 demand_range=(10,21), demand_std=None, demand_sen_peaks=None, 
+                 demand_range=(10,20), demand_std=None, demand_sen_peaks=None, 
+                 avg_demand_range=(100,300), 
                  processing_ratio=3, leadtime=2, total_time_steps=360, seed=None,
                  build_info=False, demand_perturb_norm=False):
         
@@ -369,14 +370,20 @@ class SupplyChainEnv(gym.Env):
         self.leadtime = leadtime
         self.rand_generator = np.random.RandomState(seed)
         self.demand_range = demand_range
-        self.demand_range_value = demand_range[1]-self.demand_range[0]-1
+        self.demand_range_value = demand_range[1]-self.demand_range[0]
         self.demand_std = demand_std
         self.demand_sen_peaks = demand_sen_peaks
+        if avg_demand_range:
+            self.minavg_demand = avg_demand_range[0]
+            self.maxavg_demand = avg_demand_range[1]
+        else:
+            self.minavg_demand = None
+            self.maxavg_demand = None
         self.demand_perturb_norm = demand_perturb_norm
 
         # Não suporta demanda fixa (apenas para evitar ficar fazendo if toda hora 
         # para testar isso na hora de montar o estado)
-        assert self.demand_range[0] != self.demand_range[1]-1
+        assert self.demand_range[0] != self.demand_range[1]
 
         # Definição dos espaços de ações e de estados
         action_space_size = 0
@@ -400,8 +407,9 @@ class SupplyChainEnv(gym.Env):
         self.episode_rewards = 0
         # gerando as demandas de todo o episódio
         self.customer_demands = generate_demand(self.rand_generator, (self.total_time_steps+1, len(self.last_level_nodes)), 
-                                                self.total_time_steps, self.demand_range[0], self.demand_range[1]-1,
+                                                self.total_time_steps, self.demand_range[0], self.demand_range[1],
                                                 std=self.demand_std, sen_peaks=self.demand_sen_peaks,
+                                                minavg=self.minavg_demand, maxavg=self.maxavg_demand,
                                                 perturb_norm=self.demand_perturb_norm)
         
         self.current_state = self._build_observation()
@@ -515,7 +523,7 @@ class SupplyChainEnv(gym.Env):
         self.rand_generator = np.random.RandomState(seed)
 
 if __name__ == '__main__':
-    demand_range     = (10,21)
+    demand_range     = (10,20)
     stock_capacity   = 300
     supply_capacity  = 50
     processing_capacity = 50

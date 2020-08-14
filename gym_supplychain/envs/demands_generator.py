@@ -1,6 +1,7 @@
 import numpy as np
 
-def generate_demand(rand_generator, dem_shape, horizon, minv, maxv, std=None, sen_peaks=None, perturb_norm=True):
+def generate_demand(rand_generator, dem_shape, horizon, minv, maxv, std=None,
+                    sen_peaks=None, minavg=None, maxavg=None, perturb_norm=True):
     """ Gerador de demandas aleatórios (distr. uniforme, normal ou senoidal)
         A função gera a demanda para todos os períodos do horizonte para vários clientes.
         
@@ -11,6 +12,8 @@ def generate_demand(rand_generator, dem_shape, horizon, minv, maxv, std=None, se
         :param maxv: (int) Maior valor possível de demanda.
         :param std: (float) Desvio padrão da distribuição Normal utilizada (se `None` será distribuição uniforme).
         :param sen_peaks: (int) Número de picos da função senoidal (se `None` não será uma senoidal).
+        :param minv: (int) Menor valor de média (apenas no caso de senoidal)
+        :param maxv: (int) Maior valor de média (apenas no caso de senoidal)
         :param perturb_norm: (bool) No caso de função senoidal indica se perturbação é dada pela distribuição normal ou uniforme.
         :return: (tuple) As demandas geradas.
     """
@@ -25,7 +28,7 @@ def generate_demand(rand_generator, dem_shape, horizon, minv, maxv, std=None, se
     # Se passou número de picos, é uma função senoidal
     else: 
         std = 0 if std is None else std
-        return senoidal_data(rand_generator, horizon, dem_shape, minv, maxv, std, sen_peaks, perturb_norm)
+        return senoidal_data(rand_generator, horizon, dem_shape, minv, maxv, std, sen_peaks, minavg, maxavg, perturb_norm)
 
 def uniform_data(rand_generator, horizon, dem_shape, minv, maxv):
     """ Gera a quantidade de demandas solicitadas a partir de uma distribuição uniforme
@@ -42,26 +45,26 @@ def normal_data(rand_generator, horizon, dem_shape, minv, maxv, std):
             data[period, r] = cut_limit_data(int(round(data[period, r])), minv, maxv)
     return data
 
-def senoidal_data(rand_generator, horizon=360, dem_shape=(361,2), minv=0, maxv=100, std=5, num_peaks=4,
-                  perturb_norm=True):
-    """Gera pontos ponto de uma curva senoidal referentes à ordenada `period`
+def senoidal_data(rand_generator, horizon=360, dem_shape=(361,2), minv=0, maxv=400, std=5, num_peaks=4,
+                  minavg=100, maxavg=300, perturb_norm=True):
+    """Gera pontos ponto de uma curva senoidal referentes à ordenada `horizon`.
 
-       A perturbação é gerada por uma distribuição normal de média zero
-       e desvio padrão std. 
-       Como 99.7% dos dados da distribuição ficam entre [-3std,+3std]
-       a faixa de valores considerada para o valor média leva isso em consideração.
+       A senoidal base varia entre `minavg` e `maxavg`. A partir dessa base uma
+       perturbação é gerada por uma distribuição (normal ou uniforme).
+       - No caso de perturbação normal, ela tem média zero e desvio padrão `std`.
+       - No caso de perturbação uniforme, ela varia na faixa de [-3*std,3*std].
+         Essa faixa foi escolhida porque conter 99.7% dos dados de uma distribuição
+         normal (e assim poder comparar melhor com ela).
+       
        Os valores que ficarem fora dos limites mínimo e máximo são cortados.
     """
-
-    curve_min = 3*std+minv
-    curve_max = maxv-3*std
-    curve_range = curve_max - curve_min
+    curve_range = maxavg - minavg
 
     # Para gerar o dado de um único período a fórmula é:
-    #   demand = curve_min + curve_range/2 * (1 + np.sin(num_peaks*2*np.pi*period/horizon)) + rand_generator.normal(0, std)
+    #   demand = minavg + curve_range/2 * (1 + np.sin(num_peaks*2*np.pi*period/horizon)) + rand_generator.normal(0, std)
     # 
     # O trecho abaixo otimiza os cálculos guardando resultados parciais para serem reutilizados
-    #   demand = curve_min + half_curve * (1 + np.sin(sin_arg*period)) + perturb[period,d]
+    #   demand = minavg + half_curve * (1 + np.sin(sin_arg*period)) + perturb[period,d]
     half_curve = curve_range/2
     sin_arg = num_peaks*2*np.pi/horizon
     if perturb_norm:
@@ -72,7 +75,7 @@ def senoidal_data(rand_generator, horizon=360, dem_shape=(361,2), minv=0, maxv=1
     data = np.zeros(dem_shape)
     for period in range(dem_shape[0]):
         for d in range(dem_shape[1]):
-            dem = curve_min + half_curve * (1 + np.sin(sin_arg*period)) + perturb[period,d]
+            dem = minavg + half_curve * (1 + np.sin(sin_arg*period)) + perturb[period,d]
             data[period,d] =  cut_limit_data(int(round(dem)), minv, maxv)
     
     return data
@@ -90,14 +93,22 @@ if __name__ == '__main__':
     H = 360
     dem_shape = (361,2)
     num_demands = 2
+    minv = 0
+    maxv = 400
+    minavg = 100
+    maxavg = 300
+    std = 50
+    sen_peaks = 4
     rand_generator = np.random.RandomState(None)
 
-    uni_data = generate_demand(rand_generator, dem_shape, H, 0, 100, std=None, sen_peaks=None)
-    nor_data = generate_demand(rand_generator, dem_shape, H, 0, 100, std=15, sen_peaks=None)
-    sen_data_norm = generate_demand(rand_generator, dem_shape, H, 0, 100, std=5, sen_peaks=4)
-    sen_data_unif = generate_demand(rand_generator, dem_shape, H, 0, 100, std=5, sen_peaks=4, perturb_norm=False)
+    uni_data = generate_demand(rand_generator, dem_shape, H, minv=minv, maxv=maxv)
+    nor_data = generate_demand(rand_generator, dem_shape, H, minv=minv, maxv=maxv, std=std)
+    sen_data_norm = generate_demand(rand_generator, dem_shape, H, minv=minv, maxv=maxv, std=std,
+                                    sen_peaks=sen_peaks, minavg=minavg, maxavg=maxavg)
+    sen_data_unif = generate_demand(rand_generator, dem_shape, H, minv=minv, maxv=maxv, std=std,
+                                    sen_peaks=sen_peaks, minavg=minavg, maxavg=maxavg, perturb_norm=False)
     
-    def plot(i, data1, data2, label1, label2):        
+    def plot(i, data1, data2, label1, label2):
         ppt.plot(data1[:,i], label=label1)
         ppt.plot(data2[:,i], label=label2)
         ppt.legend()
