@@ -434,7 +434,7 @@ class SupplyChainEnv(gym.Env):
         return (action+1)/2
         
     def _normalize_obs(self, obs):
-        return obs*2 - 1
+        return np.clip(obs*2 - 1, self.observation_space.low, self.observation_space.high)
 
     def step(self, action):
         action = self._denormalize_action(action)
