@@ -121,6 +121,12 @@ class SC_Node:
         if supply_capacity > 0:
             self.supply_action = SC_Action('SUPPLY', capacity=supply_capacity, costs=supply_cost)
             self.num_actions += 1
+            self.max_ship = supply_capacity
+        else:
+            # Indica o máximo de material que pode chegar por transporte em cada período
+            # (será a soma das capacidades das origens)
+            # Ver issue #1 para maiores detalhes.
+            self.max_ship = 0
         self.processing_capacity = processing_capacity
         self.last_level = last_level
         
@@ -128,6 +134,7 @@ class SC_Node:
         self.initial_supply = initial_supply
         self.initial_shipments = initial_shipments
         
+        self.stock = self.initial_stock
         self.stock_capacity = stock_capacity
         self.stock_cost = stock_cost
         self.exceeded_capacity_cost = exceeded_capacity_cost
@@ -136,12 +143,15 @@ class SC_Node:
         self.processing_ratio = processing_ratio
         self.processing_cost = processing_cost
         self.dest = None
-        self.shipments = deque()        
+        self.shipments = deque()
 
     def define_destinations(self, dests, costs):
         self.dests = dests
         self.ship_action = SC_Action('SHIP', costs=costs)
         self.num_actions += len(self.dests)
+        # Atualiza a capacidade de transporte do destino
+        for dest in self.dests:
+            dest.max_ship += self.stock_capacity
 
     def act(self, action_values, leadtime, time_step, customer_demand=None):
         total_cost = 0
@@ -300,7 +310,8 @@ class SC_Node:
                 while ship_idx >= -len(self.shipments) and self.shipments[ship_idx][0] == time_step:
                     obs[-1] += self.shipments[ship_idx][1]
                     ship_idx -= 1
-                obs[-1] /= self.stock_capacity
+                # normaliza a quantidade de material em transporte
+                obs[-1] /= self.max_ship
             return obs
 
     def __repr__(self):
