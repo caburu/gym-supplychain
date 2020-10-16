@@ -18,7 +18,7 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                  unmet_demand_cost=216, exceeded_capacity_cost=10,
                  demand_range=(10,20), demand_std=None, demand_sen_peaks=None,
                  avg_demand_range=None,
-                 leadtime=2, total_time_steps=360, seed=None, build_info=False,
+                 avg_leadtime=2, max_leadtime=4, total_time_steps=360, seed=None, build_info=False,
                  demand_perturb_norm=False):
 
         if not initial_stocks: # A posição zero é do primeiro fornecedor, e assim por diante
@@ -52,8 +52,8 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                          processing_ratio=processing_ratio, demand_range=demand_range,
                          demand_std=demand_std, demand_sen_peaks=demand_sen_peaks,
                          avg_demand_range=avg_demand_range,
-                         total_time_steps=total_time_steps, leadtime=leadtime, seed=seed,
-                         build_info=build_info, demand_perturb_norm=demand_perturb_norm)
+                         total_time_steps=total_time_steps, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime, 
+                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm)
 
 
 class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
@@ -66,7 +66,8 @@ class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
                          unmet_demand_cost=216, exceeded_capacity_cost=10,
                          demand_range=(0,400), demand_std=5, demand_sen_peaks=4,
                          avg_demand_range=(150,250),
-                         leadtime=2, total_time_steps=360, seed=None, build_info=False, check_actions=False,
+                         avg_leadtime=2, max_leadtime=4,
+                         total_time_steps=360, seed=None, build_info=False, check_actions=False,
                          demand_perturb_norm=True):
 
         super().__init__(initial_stocks=initial_stocks, initial_supply=initial_supply, 
@@ -78,7 +79,8 @@ class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
                          unmet_demand_cost=unmet_demand_cost, exceeded_capacity_cost=exceeded_capacity_cost,
                          demand_range=demand_range, demand_std=demand_std, demand_sen_peaks=demand_sen_peaks,
                          avg_demand_range=avg_demand_range,
-                         leadtime=leadtime, total_time_steps=total_time_steps, seed=seed,
+                         avg_leadtime=avg_leadtime, max_leadtime=max_leadtime, 
+                         total_time_steps=total_time_steps, seed=seed,
                          build_info=build_info, demand_perturb_norm=demand_perturb_norm)
 
 if __name__ == '__main__':
