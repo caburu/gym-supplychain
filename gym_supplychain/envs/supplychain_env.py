@@ -144,7 +144,7 @@ class SC_Node:
         self.processing_cost = processing_cost
         self.dests = None
         self.shipments = []
-        self.max_leatime = max_leadtime
+        self.max_leadtime = max_leadtime
 
     def define_destinations(self, dests, costs):
         self.dests = dests
@@ -329,7 +329,7 @@ class SC_Node:
                 obs[-1] += self.shipments[ship_idx][1]
                 ship_idx += 1
             # normaliza a quantidade de material em transporte
-            obs[-1] /= self.max_ship*(self.max_leatime-(shipments_range[1]-shipments_range[0]))
+            obs[-1] /= self.max_ship*(self.max_leadtime-(shipments_range[1]-shipments_range[0]))
 
             return obs
 
@@ -348,13 +348,17 @@ class SupplyChainEnv(gym.Env):
     """
     #metadata = {'render.modes': ['human']}
     def __init__(self, nodes_info, unmet_demand_cost=1000, exceeded_capacity_cost=1000,
-                 demand_range=(10,20), demand_std=None, demand_sen_peaks=None, 
-                 avg_demand_range=(100,300), 
-                 processing_ratio=3, avg_leadtime=2, max_leadtime=4,
+                 demand_range=(10,20), demand_std=None, demand_sen_peaks=None, avg_demand_range=None, 
+                 processing_ratio=3, stochastic_leadtimes=False, avg_leadtime=2, max_leadtime=2,
                  total_time_steps=360, seed=None,
                  build_info=False, demand_perturb_norm=False):
         """
-           avg_leadtime: leadtime médio (valores seguem distribuição de Poisson truncada, ou seja, evitando valor zero).
+            :param stochastic_leadtimes: (bool) indica se os leadtimes serão constantes ou estocásticos.
+            :param avg_leadtime: (int) valor constante do leadtime ou a média dos leadtimes se eles forem estocásticos.
+                                 Valores seguem distribuição de Poisson truncada, ou seja, evitando valor zero.
+            :param max_leadtime: (int) no caso de leadtimes estocásticos indica o limite de leatime 
+                                 (valores maiores que o limite são igualados ao limite). Cuidado: isso afeta a média real.
+                                 No caso de leadtime constante, só faz sentido que seja igual ao leadtime constante.
         """
         
         def create_nodes(nodes_info):
@@ -399,6 +403,7 @@ class SupplyChainEnv(gym.Env):
                                              node_info['dest_costs'])
 
         self.build_info   = build_info
+        self.stochastic_leadtimes = stochastic_leadtimes
         self.avg_leadtime = avg_leadtime
         self.max_leadtime = max_leadtime
                     
@@ -417,11 +422,12 @@ class SupplyChainEnv(gym.Env):
             self.maxavg_demand = None
         self.demand_perturb_norm = demand_perturb_norm
         
-        self.count_leadtimes_per_timestep = 0
-        for node in self.nodes:            
-            if node.supply_action:
-                self.count_leadtimes_per_timestep += 1
-            self.count_leadtimes_per_timestep += len(node.dests) if node.dests else 0
+        if stochastic_leadtimes:
+            self.count_leadtimes_per_timestep = 0
+            for node in self.nodes:            
+                if node.supply_action:
+                    self.count_leadtimes_per_timestep += 1
+                self.count_leadtimes_per_timestep += len(node.dests) if node.dests else 0
 
         # Não suporta demanda fixa (apenas para evitar ficar fazendo if toda hora 
         # para testar isso na hora de montar o estado)
@@ -460,14 +466,16 @@ class SupplyChainEnv(gym.Env):
                                                 std=self.demand_std, sen_peaks=self.demand_sen_peaks,
                                                 minavg=self.minavg_demand, maxavg=self.maxavg_demand,
                                                 perturb_norm=self.demand_perturb_norm)
-        # Gerando os leadtimes para todo o episódio
-        # - O formato é: time_steps x número de leadtimes por período (fornecedores e destinos de cada nó)
-        # - Para evitar valores iguais a zero, a distribuição de Poisson é gerada com média `avg_leadtime-1` e os valores
-        #   são todos somados com 1.
-        # - E para evitar valores maiores que o máximo esperado, os valores são cortados com `np.clip`.
-        self.leadtimes = 1 + self.rand_generator.poisson(lam=self.avg_leadtime-1, 
-                                    size=(self.total_time_steps, self.count_leadtimes_per_timestep))
-        self.leadtimes = np.clip(self.leadtimes, 1, self.max_leadtime)
+        
+        if self.stochastic_leadtimes:
+            # Gerando os leadtimes para todo o episódio
+            # - O formato é: time_steps x número de leadtimes por período (fornecedores e destinos de cada nó)
+            # - Para evitar valores iguais a zero, a distribuição de Poisson é gerada com média `avg_leadtime-1` e os valores
+            #   são todos somados com 1.
+            # - E para evitar valores maiores que o máximo esperado, os valores são cortados com `np.clip`.
+            self.leadtimes = 1 + self.rand_generator.poisson(lam=self.avg_leadtime-1, 
+                                        size=(self.total_time_steps, self.count_leadtimes_per_timestep))
+            self.leadtimes = np.clip(self.leadtimes, 1, self.max_leadtime)
 
         self.current_state = self._build_observation()
 
@@ -504,7 +512,10 @@ class SupplyChainEnv(gym.Env):
         next_customer = 0
         for node in self.nodes:
             actions_to_apply   = action[next_action_idx:next_action_idx+node.num_expected_actions()]
-            leadtimes_to_apply = self.leadtimes[self.time_step-1, next_action_idx:next_action_idx+node.num_expected_actions()]
+            if self.stochastic_leadtimes:
+                leadtimes_to_apply = self.leadtimes[self.time_step-1, next_action_idx:next_action_idx+node.num_expected_actions()]
+            else:
+                leadtimes_to_apply = node.num_expected_actions()*[self.avg_leadtime]
             
             next_action_idx   += node.num_expected_actions()
             
@@ -589,7 +600,9 @@ if __name__ == '__main__':
     supply_capacity  = 50
     processing_capacity = 50
     processing_ratio = 3
+    stochastic_leadtimes = True
     avg_leadtime= 2
+    max_leadtime= 4
     stock_cost  = 1
     dest_cost   = 2*stock_cost
     supply_cost = 5*stock_cost
@@ -629,7 +642,8 @@ if __name__ == '__main__':
 
     env = SupplyChainEnv(nodes_info, demand_range=demand_range, unmet_demand_cost=unmet_demand_cost, 
                          exceeded_capacity_cost=exceeded_capacity_cost, processing_ratio=processing_ratio, 
-                         avg_leadtime=avg_leadtime, total_time_steps=total_time_steps)
+                         stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime,
+                         total_time_steps=total_time_steps)
     env.action_space.seed(0)
     env.seed(0)
     env.reset()
