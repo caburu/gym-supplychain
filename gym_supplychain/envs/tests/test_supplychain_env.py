@@ -254,18 +254,18 @@ class TestSupplyChainEnv:
 
         # Trecho para salvar os leadtimes:
         # 
-        lt = np.zeros((100,5,env.count_leadtimes_per_timestep))
-        for seed in range(seeds):
-            env.seed(seed)
-            for epis in range(episodes):
-                env.reset()
-                lt[10*seed+epis] = env.leadtimes.copy()
-                done = False
-                while not done:
-                    _, _, done, _ = env.step(env.action_space.sample())
-        np.save(self._data_folder()+'leadtimes_2perstage', lt)
+        # lt = np.zeros((100,5,env.count_leadtimes_per_timestep))
+        # for seed in range(seeds):
+        #     env.seed(seed)
+        #     for epis in range(episodes):
+        #         env.reset()
+        #         lt[10*seed+epis] = env.leadtimes.copy()
+        #         done = False
+        #         while not done:
+        #             _, _, done, _ = env.step(env.action_space.sample())
+        # np.save(self._data_folder()+'leadtimes_simple_chain', lt)
 
-        leadtimes = np.load(self._data_folder()+'leadtimes_2perstage.npy')
+        leadtimes = np.load(self._data_folder()+'leadtimes_simple_chain.npy')
 
         for seed in range(seeds):
             env.seed(seed)

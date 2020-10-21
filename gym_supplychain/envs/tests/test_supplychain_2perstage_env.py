@@ -199,6 +199,19 @@ class TestSupplyChain2perStageEnv:
 
         env = SupplyChain2perStageEnv(stochastic_leadtimes=True, avg_leadtime=2, max_leadtime=4)
 
+        # Trecho para salvar os leadtimes:
+        # 
+        lt = np.zeros((100,360,env.count_leadtimes_per_timestep))
+        for seed in range(seeds):
+            env.seed(seed+1)
+            for epis in range(episodes):
+                env.reset()
+                lt[10*seed+epis] = env.leadtimes.copy()
+                done = False
+                while not done:
+                    _, _, done, _ = env.step(env.action_space.sample())
+        np.save(self._data_folder()+'leadtimes_2perstage', lt)
+
         leadtimes = np.load(self._data_folder()+'leadtimes_2perstage.npy')
 
         for seed in range(seeds):
@@ -265,7 +278,7 @@ class TestSupplyChain2perStageSeasonalEnv:
         seeds = 10
         episodes = 10
 
-        env = SupplyChain2perStageEnv(stochastic_leadtimes=True, avg_leadtime=2, max_leadtime=4)
+        env = SupplyChain2perStageSeasonalEnv(stochastic_leadtimes=True, avg_leadtime=2, max_leadtime=4)
 
         demands = np.load(self._data_folder()+'demands_2perstageSeasonal_stocleadtimes.npy')
 
