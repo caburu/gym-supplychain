@@ -142,6 +142,7 @@ class SC_Node:
         
         self.processing_ratio = processing_ratio
         self.processing_cost = processing_cost
+        
         self.dests = None
         self.shipments = []
         self.max_leadtime = max_leadtime
