@@ -5,7 +5,7 @@ import pytest
 # TODO: Testar dinâmica da cadeia sazonal (com leadtime)
 # TODO: Testar caso de descarte por excesso de estoque
 
-from gym_supplychain.envs.supplychain_2perstage_env import SupplyChain2perStageEnv, SupplyChain2perStageSeasonalEnv
+from ..supplychain_2perstage_env import SupplyChain2perStageEnv, SupplyChain2perStageSeasonalEnv
 
 class TestSupplyChain2perStageEnv:
     def _data_folder(self):

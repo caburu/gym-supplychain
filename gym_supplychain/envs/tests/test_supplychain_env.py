@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from gym_supplychain.envs.supplychain_env import SupplyChainEnv
+from ..supplychain_env import SupplyChainEnv
 
 class TestSupplyChainEnv:
     def _data_folder(self):

@@ -4,7 +4,7 @@ import heapq
 import gym
 from gym import spaces
 
-from gym_supplychain.envs.demands_generator import generate_demand
+from .demands_generator import generate_demand
 
 class SC_Action:
     """ Define uma ação do ambiente da Cadeia de Suprimentos.
