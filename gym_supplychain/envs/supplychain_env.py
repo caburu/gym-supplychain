@@ -1,10 +1,10 @@
 import numpy as np
-from collections import deque
+import heapq
 
 import gym
 from gym import spaces
 
-from gym_supplychain.envs.demands_generator import generate_demand
+from .demands_generator import generate_demand
 
 class SC_Action:
     """ Define uma ação do ambiente da Cadeia de Suprimentos.
@@ -112,7 +112,7 @@ class SC_Node:
     def __init__(self, label, initial_stock=0, initial_supply=None, initial_shipments=None, 
                  stock_capacity=0, supply_capacity=0, processing_capacity=0, processing_ratio=0,
                  last_level=False, stock_cost=0, supply_cost=0, processing_cost=0, 
-                 exceeded_capacity_cost=1, unmet_demand_cost=1, build_info=False):
+                 exceeded_capacity_cost=1, unmet_demand_cost=1, max_leadtime=4, build_info=False):
         self.build_info = build_info
         self.label = label
         self.supply_action = None
@@ -142,8 +142,10 @@ class SC_Node:
         
         self.processing_ratio = processing_ratio
         self.processing_cost = processing_cost
-        self.dest = None
-        self.shipments = deque()
+        
+        self.dests = None
+        self.shipments = []
+        self.max_leadtime = max_leadtime
 
     def define_destinations(self, dests, costs):
         self.dests = dests
@@ -153,13 +155,14 @@ class SC_Node:
         for dest in self.dests:
             dest.max_ship += self.stock_capacity
 
-    def act(self, action_values, leadtime, time_step, customer_demand=None):
+    def act(self, action_values, leadtimes, time_step, customer_demand=None):
         total_cost = 0
+        next_leadtime_idx = 0
 
         arrived_material = 0
         # O primeiro passo é receber o material que está pra chegar
-        while self.shipments and self.shipments[-1][0] == time_step:
-            _, amount = self.shipments.pop()
+        while self.shipments and self.shipments[0][0] == time_step:
+            _, amount = heapq.heappop(self.shipments)
             arrived_material += amount
             
         # Se é uma fábrica, é necessário processar a matéria-prima, gerando produto
@@ -213,7 +216,8 @@ class SC_Node:
             next_action_idx += 1
             # adiciona o material para ser fornecido
             if amount > 0:
-                self.shipments.appendleft((time_step+leadtime, amount))
+                self._ship_material(time_step+leadtimes[next_leadtime_idx], amount)
+                next_leadtime_idx += 1
             # Contabiliza os custos e estatísticas
             total_cost += cost
             if self.build_info:
@@ -229,7 +233,8 @@ class SC_Node:
             # Trata o envio dos materiais
             for i in range(len(self.dests)):
                 if amounts[i] > 0:
-                    self.dests[i]._ship_material(time_step+leadtime, amounts[i])
+                    self.dests[i]._ship_material(time_step+leadtimes[next_leadtime_idx], amounts[i])
+                    next_leadtime_idx += 1
             # Contabiliza os custos e estatísticas
             total_cost += sum(costs)
             if self.build_info:
@@ -256,17 +261,17 @@ class SC_Node:
         return total_cost
 
     def _ship_material(self, time, amount):
-        self.shipments.appendleft((time,amount))
+        heapq.heappush(self.shipments, (time,amount))
 
     def reset(self):
         self.stock = self.initial_stock
         self.shipments.clear()
         if self.initial_supply:
             for i in range(len(self.initial_supply)):
-                self.shipments.appendleft((i+1, self.initial_supply[i]))
+                self._ship_material(i+1, self.initial_supply[i])
         if self.initial_shipments:
             for i in range(len(self.initial_shipments)):
-                self.shipments.appendleft((i+1, self.initial_shipments[i]))
+                self._ship_material(i+1, self.initial_shipments[i])
         
         # Atributos estatísticos para depuração
         if self.build_info:
@@ -284,8 +289,9 @@ class SC_Node:
 
     def build_observation(self, shipments_range):
         """ Observação é [estoque, ship1, ship2, ...]
-            Onde ship1 é a soma dos carregamentos que chegam no próximo período,
-            ship2 no período seguinte, e assim por diante.
+            Onde ship1 é a soma dos carregamentos que chegam no próximo período,    
+            ship2 no período seguinte, e assim por diante, até que o último valor é a soma
+            de todos os carregamentos daquele período em diante.
 
             Os valores são normalizados, ou seja, o valor de estoque é a porcentagem
             da capacidade do estoque.
@@ -304,24 +310,38 @@ class SC_Node:
             obs += [0]*(shipments_range[1]-shipments_range[0]+1)
             return obs
         else:
-            ship_idx = -1
-            for time_step in range(shipments_range[0], shipments_range[1]+1):
+            # os carregamentos são dados pelo total de material em transporte em cada período.
+            # exceto o último, que é dado pelo material em transporte daquele período em diante
+
+            # Vamos primeiro tratar os períodos antes do último do range
+            ship_idx = 0
+            for time_step in range(shipments_range[0], shipments_range[1]):
                 obs.append(0)
-                while ship_idx >= -len(self.shipments) and self.shipments[ship_idx][0] == time_step:
+                while ship_idx < len(self.shipments) and self.shipments[ship_idx][0] == time_step:
                     obs[-1] += self.shipments[ship_idx][1]
-                    ship_idx -= 1
+                    ship_idx += 1
                 # normaliza a quantidade de material em transporte
                 obs[-1] /= self.max_ship
+            
+            # Agora vamos tratar o último período do range
+            time_step = shipments_range[1]
+            obs.append(0)
+            while ship_idx < len(self.shipments):
+                obs[-1] += self.shipments[ship_idx][1]
+                ship_idx += 1
+            # normaliza a quantidade de material em transporte
+            obs[-1] /= self.max_ship*(self.max_leadtime-(shipments_range[1]-shipments_range[0]))
+
             return obs
 
     def __repr__(self):
         return self.__str__()
 
     def __str__(self):
-        desc = self.label + ' '
+        desc = self.label + ' ['
         for i in range(len(self.shipments)):
-            desc += str(self.shipments[i]) + ' - '
-        desc += '[' + str(self.stock) + '] '
+            desc += str(self.shipments[i][0]) + ' ' + str(np.round(self.shipments[i][1],1)) + ', '
+        desc += '] [' + str(np.round(self.stock,1)) + '] '
         return desc
 
 class SupplyChainEnv(gym.Env):
@@ -329,10 +349,18 @@ class SupplyChainEnv(gym.Env):
     """
     #metadata = {'render.modes': ['human']}
     def __init__(self, nodes_info, unmet_demand_cost=1000, exceeded_capacity_cost=1000,
-                 demand_range=(10,20), demand_std=None, demand_sen_peaks=None, 
-                 avg_demand_range=(100,300), 
-                 processing_ratio=3, leadtime=2, total_time_steps=360, seed=None,
+                 demand_range=(10,20), demand_std=None, demand_sen_peaks=None, avg_demand_range=None, 
+                 processing_ratio=3, stochastic_leadtimes=False, avg_leadtime=2, max_leadtime=2,
+                 total_time_steps=360, seed=None,
                  build_info=False, demand_perturb_norm=False):
+        """
+            :param stochastic_leadtimes: (bool) indica se os leadtimes serão constantes ou estocásticos.
+            :param avg_leadtime: (int) valor constante do leadtime ou a média dos leadtimes se eles forem estocásticos.
+                                 Valores seguem distribuição de Poisson truncada, ou seja, evitando valor zero.
+            :param max_leadtime: (int) no caso de leadtimes estocásticos indica o limite de leatime 
+                                 (valores maiores que o limite são igualados ao limite). Cuidado: isso afeta a média real.
+                                 No caso de leadtime constante, só faz sentido que seja igual ao leadtime constante.
+        """
         
         def create_nodes(nodes_info):
             nodes_dict = {}
@@ -361,7 +389,8 @@ class SupplyChainEnv(gym.Env):
                                processing_cost=processing_cost,
                                exceeded_capacity_cost=exceeded_capacity_cost,
                                unmet_demand_cost=unmet_demand_cost,
-                               build_info=self.build_info)
+                               max_leadtime=self.max_leadtime,
+                               build_info=self.build_info)                
                 nodes_dict[node_name] = node
                 self.nodes.append(node)
                 if node.is_last_level():
@@ -374,11 +403,13 @@ class SupplyChainEnv(gym.Env):
                     node.define_destinations([nodes_dict[dest_name] for dest_name in node_info['destinations']],
                                              node_info['dest_costs'])
 
-        self.build_info    = build_info
-
+        self.build_info   = build_info
+        self.stochastic_leadtimes = stochastic_leadtimes
+        self.avg_leadtime = avg_leadtime
+        self.max_leadtime = max_leadtime
+                    
         create_nodes(nodes_info)
-        self.total_time_steps = total_time_steps
-        self.leadtime = leadtime
+        self.total_time_steps = total_time_steps                
         self.rand_generator = np.random.RandomState(seed)
         self.demand_range = demand_range
         self.demand_range_value = demand_range[1]-self.demand_range[0]
@@ -391,6 +422,13 @@ class SupplyChainEnv(gym.Env):
             self.minavg_demand = None
             self.maxavg_demand = None
         self.demand_perturb_norm = demand_perturb_norm
+        
+        if stochastic_leadtimes:
+            self.count_leadtimes_per_timestep = 0
+            for node in self.nodes:            
+                if node.supply_action:
+                    self.count_leadtimes_per_timestep += 1
+                self.count_leadtimes_per_timestep += len(node.dests) if node.dests else 0
 
         # Não suporta demanda fixa (apenas para evitar ficar fazendo if toda hora 
         # para testar isso na hora de montar o estado)
@@ -399,8 +437,15 @@ class SupplyChainEnv(gym.Env):
         # Definição dos espaços de ações e de estados
         action_space_size = 0
         for node in self.nodes:
-            action_space_size += node.num_expected_actions()
-        obs_space_size = len(self.last_level_nodes)+len(self.nodes)*(1+leadtime)+1
+            action_space_size += node.num_expected_actions()            
+
+        # As observações (estados) são dados pela:
+        # - len(self.last_level_nodes)      : Demandas, sendo 1 para cada varejista
+        # - len(self.nodes)*1               : Níveis de estoque, 1 para cada nó da cadeia.
+        # - len(self.nodes)*(avg_leadtime)  : Materiais em transporte; sendo l o leadtime médio, considera, para cada nó
+        #                                     a quantidade de material em transporte no período t+1, t+2, ... t+(l-1), sum_{i>=l}t+i
+        # - 1                               : número de períodos para terminar o episódio
+        obs_space_size = len(self.last_level_nodes)+len(self.nodes)*(1+avg_leadtime)+1        
 
         # O action_space é tratado como de [0,1] no código, então quando a ação é recebida o valor
         # é desnormalizado
@@ -423,6 +468,16 @@ class SupplyChainEnv(gym.Env):
                                                 minavg=self.minavg_demand, maxavg=self.maxavg_demand,
                                                 perturb_norm=self.demand_perturb_norm)
         
+        if self.stochastic_leadtimes:
+            # Gerando os leadtimes para todo o episódio
+            # - O formato é: time_steps x número de leadtimes por período (fornecedores e destinos de cada nó)
+            # - Para evitar valores iguais a zero, a distribuição de Poisson é gerada com média `avg_leadtime-1` e os valores
+            #   são todos somados com 1.
+            # - E para evitar valores maiores que o máximo esperado, os valores são cortados com `np.clip`.
+            self.leadtimes = 1 + self.rand_generator.poisson(lam=self.avg_leadtime-1, 
+                                        size=(self.total_time_steps, self.count_leadtimes_per_timestep))
+            self.leadtimes = np.clip(self.leadtimes, 1, self.max_leadtime)
+
         self.current_state = self._build_observation()
 
         # Estatísticas do episódio
@@ -457,14 +512,21 @@ class SupplyChainEnv(gym.Env):
         next_action_idx = 0
         next_customer = 0
         for node in self.nodes:
-            actions_to_apply = action[next_action_idx:next_action_idx+node.num_expected_actions()]
-            next_action_idx += node.num_expected_actions()
+            actions_to_apply   = action[next_action_idx:next_action_idx+node.num_expected_actions()]
+            if self.stochastic_leadtimes:
+                leadtimes_to_apply = self.leadtimes[self.time_step-1, next_action_idx:next_action_idx+node.num_expected_actions()]
+            else:
+                leadtimes_to_apply = node.num_expected_actions()*[self.avg_leadtime]
+            
+            next_action_idx   += node.num_expected_actions()
+            
             if node.last_level:
                 demand = self.customer_demands[self.time_step-1, next_customer]
                 next_customer += 1
             else:
                 demand = None
-            cost = node.act(actions_to_apply, self.leadtime, self.time_step, customer_demand=demand)
+            
+            cost = node.act(actions_to_apply, leadtimes_to_apply, self.time_step, customer_demand=demand)
             total_cost += cost
 
         self.current_reward = -total_cost
@@ -504,7 +566,7 @@ class SupplyChainEnv(gym.Env):
         # Depois pegamos os dados de cada nó
         nodes_obs = []
         for node in self.nodes:
-            nodes_obs += node.build_observation((self.time_step+1, self.time_step+self.leadtime))        
+            nodes_obs += node.build_observation((self.time_step+1, self.time_step+self.avg_leadtime))        
 
         # A observação é concatenação das demandas, com os dados nos nós mais quantos períodos 
         # faltam para terminar o episódio (normalizado)
@@ -539,14 +601,16 @@ if __name__ == '__main__':
     supply_capacity  = 50
     processing_capacity = 50
     processing_ratio = 3
-    leadtime    = 2
+    stochastic_leadtimes = True
+    avg_leadtime= 2
+    max_leadtime= 4
     stock_cost  = 1
     dest_cost   = 2*stock_cost
     supply_cost = 5*stock_cost
     processing_cost   = 2*supply_cost
     # Quanto custa para produzir e entregar uma unidade de produto (sem usar estoque)
-    # Obs: na verdade custo de transporte seria 2*leadtime*cost, porque não paga transporte no fornecimento
-    product_cost = supply_cost + 3*leadtime*dest_cost + processing_cost 
+    # Obs: na verdade custo de transporte seria 2*avg_leadtime*cost, porque não paga transporte no fornecimento
+    product_cost = supply_cost + 3*avg_leadtime*dest_cost + processing_cost 
     # O custo de demanda não atendida é duas vezes o custo de produzir (como se comprasse do concorrente).
     unmet_demand_cost = 2*product_cost
     # O custo de excesso de estoque talvez pudesse nem existir, já que o custo já incorrido no material
@@ -579,7 +643,8 @@ if __name__ == '__main__':
 
     env = SupplyChainEnv(nodes_info, demand_range=demand_range, unmet_demand_cost=unmet_demand_cost, 
                          exceeded_capacity_cost=exceeded_capacity_cost, processing_ratio=processing_ratio, 
-                         leadtime=leadtime, total_time_steps=total_time_steps)
+                         stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime,
+                         total_time_steps=total_time_steps)
     env.action_space.seed(0)
     env.seed(0)
     env.reset()
