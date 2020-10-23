@@ -302,7 +302,8 @@ class SC_Node:
         # - No caso das fábricas inclui a fração de matéria-prima pendente (se existir)
         current_stock = self.stock
 
-        obs = [current_stock/self.stock_capacity]
+        #obs = [current_stock/self.stock_capacity]
+        obs = [current_stock]
 
         # Se não tem nenhum carregamento pra chegar
         # Cria os carregamentos vazios
@@ -321,7 +322,7 @@ class SC_Node:
                     obs[-1] += self.shipments[ship_idx][1]
                     ship_idx += 1
                 # normaliza a quantidade de material em transporte
-                obs[-1] /= self.max_ship
+                #obs[-1] /= self.max_ship
             
             # Agora vamos tratar o último período do range
             time_step = shipments_range[1]
@@ -330,7 +331,7 @@ class SC_Node:
                 obs[-1] += self.shipments[ship_idx][1]
                 ship_idx += 1
             # normaliza a quantidade de material em transporte
-            obs[-1] /= self.max_ship*(self.max_leadtime-(shipments_range[1]-shipments_range[0]))
+            #obs[-1] /= self.max_ship*(self.max_leadtime-(shipments_range[1]-shipments_range[0]))
 
             return obs
 
@@ -450,7 +451,7 @@ class SupplyChainEnv(gym.Env):
         # O action_space é tratado como de [0,1] no código, então quando a ação é recebida o valor
         # é desnormalizado
         self.action_space      = spaces.Box(low=-1.0, high=1.0, shape=(action_space_size,))
-        self.observation_space = spaces.Box(low=-1.0, high=1.0, shape=(obs_space_size,))        
+        self.observation_space = spaces.Box(low=np.finfo(np.float32).min, high=np.finfo(np.float32).max, shape=(obs_space_size,))        
 
         self.current_state = None
 
@@ -561,7 +562,8 @@ class SupplyChainEnv(gym.Env):
                 - O quanto de material está chegando nos períodos seguintes.
         """ 
         # Primeiro guardamos as demandas (normalizadas)
-        demands_obs = (self.customer_demands[self.time_step,:] - self.demand_range[0])/(self.demand_range_value)
+        #demands_obs = (self.customer_demands[self.time_step,:] - self.demand_range[0])/(self.demand_range_value)
+        demands_obs = (self.customer_demands[self.time_step,:])
             
         # Depois pegamos os dados de cada nó
         nodes_obs = []
@@ -570,12 +572,14 @@ class SupplyChainEnv(gym.Env):
 
         # A observação é concatenação das demandas, com os dados nos nós mais quantos períodos 
         # faltam para terminar o episódio (normalizado)
-        obs = np.concatenate((demands_obs, nodes_obs, [(self.total_time_steps-self.time_step)/self.total_time_steps]))
+        #obs = np.concatenate((demands_obs, nodes_obs, [(self.total_time_steps-self.time_step)/self.total_time_steps]))
+        obs = np.concatenate((demands_obs, nodes_obs, [self.total_time_steps]))
         
         # Por fim, normalizamos o estado para a faixa [-1,1]
-        norm_obs = self._normalize_obs(obs)
+        # norm_obs = self._normalize_obs(obs)
 
-        return norm_obs
+        #return norm_obs
+        return obs
 
     def _build_return_info(self):
         # O prefixo 'sc_' serve pra identificar as chaves que se refere ao ambiente
