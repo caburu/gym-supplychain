@@ -529,7 +529,8 @@ class SupplyChainEnv(gym.Env):
             cost = node.act(actions_to_apply, leadtimes_to_apply, self.time_step, customer_demand=demand)
             total_cost += cost
 
-        self.current_reward = -total_cost
+        #self.current_reward = -total_cost
+        self.current_reward = 1/total_cost
         self.episode_rewards += self.current_reward
         self.current_state = self._build_observation()
 
@@ -589,7 +590,8 @@ class SupplyChainEnv(gym.Env):
             print()                 
         print('Next demands  :', self.customer_demands[self.time_step,:])
         print('Current state :', self.current_state)
-        print('Current reward:', round(self.current_reward,3))
+        #print('Current reward:', round(self.current_reward,3))
+        print('Current reward:', self.current_reward)
         print('='*30)
 
     def seed(self, seed=None):
