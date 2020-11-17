@@ -407,6 +407,8 @@ class SupplyChainEnv(gym.Env):
         self.stochastic_leadtimes = stochastic_leadtimes
         self.avg_leadtime = avg_leadtime
         self.max_leadtime = max_leadtime
+        
+        self.INVERSE_COST_CONST = 750
                     
         create_nodes(nodes_info)
         self.total_time_steps = total_time_steps                
@@ -530,7 +532,7 @@ class SupplyChainEnv(gym.Env):
             total_cost += cost
 
         #self.current_reward = -total_cost
-        self.current_reward = 1/total_cost
+        self.current_reward = self.INVERSE_COST_CONST*(1/total_cost)
         self.episode_rewards += self.current_reward
         self.current_state = self._build_observation()
 
