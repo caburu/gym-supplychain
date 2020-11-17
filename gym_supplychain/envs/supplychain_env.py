@@ -532,7 +532,10 @@ class SupplyChainEnv(gym.Env):
             total_cost += cost
 
         #self.current_reward = -total_cost
-        self.current_reward = self.INVERSE_COST_CONST*(1/total_cost)
+        if total_cost > 1:
+            self.current_reward = self.INVERSE_COST_CONST/total_cost
+        else:
+            self.current_reward = self.INVERSE_COST_CONST
         self.episode_rewards += self.current_reward
         self.current_state = self._build_observation()
 
