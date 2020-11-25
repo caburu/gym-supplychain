@@ -25,7 +25,8 @@ class TestSupplyChainEnv:
         nodes_info = self._create_simple_chain(initial_stock=10, stock_capacity=100, stock_cost=1, dest_cost=2, supply_cost=5,
                              supply_capacity=50, processing_cost=10, processing_capacity=100)
 
-        env = SupplyChainEnv(nodes_info, unmet_demand_cost=1000, exceeded_capacity_cost=1000,
+        env = SupplyChainEnv(nodes_info, unmet_demand_cost=1000, 
+                 exceeded_stock_capacity_cost=1000, exceeded_process_capacity_cost=1000,
                  demand_range=(0,5), demand_std=None, demand_sen_peaks=None, avg_demand_range=None, 
                  processing_ratio=2, stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime,
                  total_time_steps=5, seed=None, build_info=False, demand_perturb_norm=False)

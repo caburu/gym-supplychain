@@ -112,7 +112,7 @@ class SC_Node:
     def __init__(self, label, initial_stock=0, initial_supply=None, initial_shipments=None, 
                  stock_capacity=0, supply_capacity=0, processing_capacity=0, processing_ratio=0,
                  last_level=False, stock_cost=0, supply_cost=0, processing_cost=0, 
-                 exceeded_capacity_cost=1, unmet_demand_cost=1, max_leadtime=4, build_info=False):
+                 exceeded_stock_capacity_cost=1, exceeded_process_capacity_cost=1, unmet_demand_cost=1, max_leadtime=4, build_info=False):
         self.build_info = build_info
         self.label = label
         self.supply_action = None
@@ -137,7 +137,8 @@ class SC_Node:
         self.stock = self.initial_stock
         self.stock_capacity = stock_capacity
         self.stock_cost = stock_cost
-        self.exceeded_capacity_cost = exceeded_capacity_cost
+        self.exceeded_stock_capacity_cost = exceeded_stock_capacity_cost
+        self.exceeded_process_capacity_cost = exceeded_process_capacity_cost
         self.unmet_demand_cost = unmet_demand_cost
         
         self.processing_ratio = processing_ratio
@@ -174,9 +175,9 @@ class SC_Node:
             # Se chegou mais matéria-prima na fábrica do que ela é capaz de processar,
             # um custo de penalização é calculado e o material excedente é perdido.
             if material > self.processing_capacity:
-                total_cost += self.exceeded_capacity_cost*(material - self.processing_capacity)
+                total_cost += self.exceeded_process_capacity_cost*(material - self.processing_capacity)
                 if self.build_info:
-                    self.est_costs['processing_penalty'] = self.exceeded_capacity_cost*(material - self.processing_capacity)
+                    self.est_costs['processing_penalty'] = self.exceeded_process_capacity_cost*(material - self.processing_capacity)
                     self.est_units['processing_penalty'] = material - self.processing_capacity
                 material = self.processing_capacity
             else:
@@ -198,9 +199,9 @@ class SC_Node:
         # Se a quantidade de material que tinha no estoque mais o que chegou for maior que a
         # capacidade, um custo de penalização é gerado e o material excedente é perdido.
         if self.stock > self.stock_capacity:
-            total_cost += self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
+            total_cost += self.exceeded_stock_capacity_cost*(self.stock - self.stock_capacity)
             if self.build_info:
-                self.est_costs['stock_penalty'] = self.exceeded_capacity_cost*(self.stock - self.stock_capacity)
+                self.est_costs['stock_penalty'] = self.exceeded_stock_capacity_cost*(self.stock - self.stock_capacity)
                 self.est_units['stock_penalty'] = self.stock - self.stock_capacity
             self.stock = self.stock_capacity
         else:
@@ -348,7 +349,8 @@ class SupplyChainEnv(gym.Env):
     """ OpenAI Gym Environment for Supply Chain Environments
     """
     #metadata = {'render.modes': ['human']}
-    def __init__(self, nodes_info, unmet_demand_cost=1000, exceeded_capacity_cost=1000,
+    def __init__(self, nodes_info, unmet_demand_cost=1000, 
+                 exceeded_stock_capacity_cost=1000, exceeded_process_capacity_cost=1000,
                  demand_range=(10,20), demand_std=None, demand_sen_peaks=None, avg_demand_range=None, 
                  processing_ratio=3, stochastic_leadtimes=False, avg_leadtime=2, max_leadtime=2,
                  total_time_steps=360, seed=None,
@@ -387,7 +389,8 @@ class SupplyChainEnv(gym.Env):
                                stock_cost=node_info.get('stock_cost', 0),
                                supply_cost=node_info.get('supply_cost', 0),
                                processing_cost=processing_cost,
-                               exceeded_capacity_cost=exceeded_capacity_cost,
+                               exceeded_stock_capacity_cost=exceeded_stock_capacity_cost,
+                               exceeded_process_capacity_cost=exceeded_process_capacity_cost,
                                unmet_demand_cost=unmet_demand_cost,
                                max_leadtime=self.max_leadtime,
                                build_info=self.build_info)                
@@ -642,7 +645,8 @@ if __name__ == '__main__':
                                 'last_level':True}
 
     env = SupplyChainEnv(nodes_info, demand_range=demand_range, unmet_demand_cost=unmet_demand_cost, 
-                         exceeded_capacity_cost=exceeded_capacity_cost, processing_ratio=processing_ratio, 
+                         exceeded_stock_capacity_cost=exceeded_capacity_cost, exceeded_process_capacity_cost=exceeded_capacity_cost,
+                         processing_ratio=processing_ratio, 
                          stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime,
                          total_time_steps=total_time_steps)
     env.action_space.seed(0)
