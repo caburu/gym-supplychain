@@ -211,59 +211,44 @@ class SC_Node:
                 # No caso de uma fábrica, a quantidade de material a ser considerada para o envio será
                 # o mínimo entre o estoque atual e a capacidade de processamento da fábrica.
                 material_to_ship = min(self.stock, self.processing_capacity)
+             
+            # Se tem algum material a ser enviado
+            if material_to_ship > 0:
             
-            # A aplicação da ação retorna a quantidade de material a ser enviado para cada destino 
-            # e o custo de cada da operação.
-            # Obs: as ações se referem à porcentagem da quantidade de material atualmente em estoque.
-            amounts, costs = self.ship_action.apply(action_values[next_action_idx:], max=material_to_ship)                        
-            
-#             # Se o nó é uma fábrica, é necessário conferir se a quantidade a ser enviada respeita
-#             # à capacidade da fábrica.
-#             if self.processing_ratio > 0:
-#                 # Se chegou mais matéria-prima na fábrica do que ela é capaz de processar,
-#                 # um custo de penalização é calculado e o material excedente é perdido.
-#                 material = sum(amounts)
-#                 if material > self.processing_capacity:
-#                     total_cost += self.exceeded_process_capacity_cost*(material - self.processing_capacity)
-#                     if self.build_info:
-#                         self.est_costs['processing_penalty'] = self.exceeded_process_capacity_cost*(material - self.processing_capacity)
-#                         self.est_units['processing_penalty'] = material - self.processing_capacity
-#                     # material = self.processing_capacity
-#                     # Recalcula o quanto enviar considerando o máximo possível de ser processado na fábrica
-#                     # ATENÇÃO: aqui pode mandar menos que a capacidade, sendo que a opção inicial estava passando a capacidade
-#                     amounts, costs = self.ship_action.apply(action_values[next_action_idx:], max=self.processing_capacity)
-#                 else:
-#                     if self.build_info:
-#                         self.est_costs['processing_penalty'] = 0
-#                         self.est_units['processing_penalty'] = 0
+                # A aplicação da ação retorna a quantidade de material a ser enviado para cada destino 
+                # e o custo de cada da operação.
+                # Obs: as ações se referem à porcentagem da quantidade de material atualmente em estoque.
+                amounts, costs = self.ship_action.apply(action_values[next_action_idx:], max=material_to_ship)
 
-            # Retira do estoque o material a ser transportado
-            self.stock -= sum(amounts)
-            
-            # Se é uma fábrica
-            if self.processing_ratio > 0:
-                # Calcula o custo de processamento (se refere à quantidade de matéria-prima)
-                sum_amount = sum(amounts)
-                total_cost += sum_amount * self.processing_cost
-                if self.build_info:
-                    self.est_costs['processing'] = sum_amount * self.processing_cost
-                    self.est_units['processing'] = sum_amount
+                # Retira do estoque o material a ser transportado
+                self.stock -= sum(amounts)
                 
-                # Se é uma fábrica, é necessário transformar matéria-prima em produto, ou seja, 
-                # aplicar a razão de processamento
-                amounts = [amount/self.processing_ratio for amount in amounts]
-                costs   = [  cost/self.processing_ratio for   cost in costs  ]
-            
-            # Trata o envio dos materiais
-            for i in range(len(self.dests)):
-                self.dests[i]._ship_material(time_step+leadtimes[next_leadtime_idx], amounts[i])
-                next_leadtime_idx += 1
+                # Se é uma fábrica
+                if self.processing_ratio > 0:
+                    # Calcula o custo de processamento (se refere à quantidade de matéria-prima)
+                    sum_amount = sum(amounts)
+                    total_cost += sum_amount * self.processing_cost
+                    if self.build_info:
+                        self.est_costs['processing'] = sum_amount * self.processing_cost
+                        self.est_units['processing'] = sum_amount
+                    
+                    # Se é uma fábrica, é necessário transformar matéria-prima em produto, ou seja, 
+                    # aplicar a razão de processamento
+                    amounts = [amount/self.processing_ratio for amount in amounts]
+                    costs   = [  cost/self.processing_ratio for   cost in costs  ]
+                
+                # Trata o envio dos materiais
+                for i in range(len(self.dests)):
+                    # Se tem algum material a ser enviado
+                    if amounts[i] > 0:
+                        self.dests[i]._ship_material(time_step+leadtimes[next_leadtime_idx], amounts[i])
+                    next_leadtime_idx += 1
 
-            # Contabiliza os custos e estatísticas de transporte
-            total_cost += sum(costs)
-            if self.build_info:
-                self.est_costs['ship'] = sum(costs)
-                self.est_units['ship'] = sum(amounts)
+                # Contabiliza os custos e estatísticas de transporte
+                total_cost += sum(costs)
+                if self.build_info:
+                    self.est_costs['ship'] = sum(costs)
+                    self.est_units['ship'] = sum(amounts)
             
         # Sé um revendedor (nó de último nível) atende a demanda do cliente (o que for possível)
         elif self.last_level:
