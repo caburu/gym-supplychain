@@ -165,49 +165,25 @@ class SC_Node:
         while self.shipments and self.shipments[0][0] == time_step:
             _, amount = heapq.heappop(self.shipments)
             arrived_material += amount
-            
-        # Se é uma fábrica, é necessário processar a matéria-prima, gerando produto
-        if self.processing_ratio > 0:
-            # A matéria-prima que chegou é somada com matéria-prima anterior que
-            # pode ter sobrado como resto do processamento
-            material = arrived_material
-
-            # Se chegou mais matéria-prima na fábrica do que ela é capaz de processar,
-            # um custo de penalização é calculado e o material excedente é perdido.
-            if material > self.processing_capacity:
-                total_cost += self.exceeded_process_capacity_cost*(material - self.processing_capacity)
-                if self.build_info:
-                    self.est_costs['processing_penalty'] = self.exceeded_process_capacity_cost*(material - self.processing_capacity)
-                    self.est_units['processing_penalty'] = material - self.processing_capacity
-                material = self.processing_capacity
-            else:
-                if self.build_info:
-                    self.est_costs['processing_penalty'] = 0
-                    self.est_units['processing_penalty'] = 0
-
-            # Calcula a quantidade de produto gerado
-            amount = material / self.processing_ratio
-            # Calcula o novo resto de matéria-prima do processamento
-            total_cost += material * self.processing_cost
-            if self.build_info:
-                self.est_costs['processing'] = material * self.processing_cost
-                self.est_units['processing'] = material
-            self.stock += amount
-        else:
-            self.stock += arrived_material
+        
+        # Adiciona o material no estoque
+        self.stock += arrived_material
         
         # Se a quantidade de material que tinha no estoque mais o que chegou for maior que a
         # capacidade, um custo de penalização é gerado e o material excedente é perdido.
         if self.stock > self.stock_capacity:
+            # Calculando penalização
             total_cost += self.exceeded_stock_capacity_cost*(self.stock - self.stock_capacity)
             if self.build_info:
                 self.est_costs['stock_penalty'] = self.exceeded_stock_capacity_cost*(self.stock - self.stock_capacity)
                 self.est_units['stock_penalty'] = self.stock - self.stock_capacity
+            # Descartando material excedente
             self.stock = self.stock_capacity
         else:
+            # Se não passou da capacidade, não há penalização
             if self.build_info:
                 self.est_costs['stock_penalty'] = 0
-                self.est_units['stock_penalty'] = 0
+                self.est_units['stock_penalty'] = 0 
                 
         # Se o nó é um fornecedor, executa a ação de fornecimento
         next_action_idx = 0
@@ -227,20 +203,52 @@ class SC_Node:
 
         # Executa a ação de envio de material para o próximo estágio da cadeia
         if self.ship_action:
-            # A aplicação da ação retorna a quantidade de material a ser enviado para cada destino 
-            # e o custo de cada da operação
-            amounts, costs = self.ship_action.apply(action_values[next_action_idx:], max=self.stock)
-            self.stock -= sum(amounts)
-            # Trata o envio dos materiais
-            for i in range(len(self.dests)):
-                if amounts[i] > 0:
-                    self.dests[i]._ship_material(time_step+leadtimes[next_leadtime_idx], amounts[i])
+            # Para todos os nós exceto a fábrica o material a ser considerado para envio é todo o
+            # estoque atual.
+            if self.processing_ratio == 0:
+                material_to_ship = self.stock                
+            else:
+                # No caso de uma fábrica, a quantidade de material a ser considerada para o envio será
+                # o mínimo entre o estoque atual e a capacidade de processamento da fábrica.
+                material_to_ship = min(self.stock, self.processing_capacity)
+             
+            # Se tem algum material a ser enviado
+            if material_to_ship > 0:
+            
+                # A aplicação da ação retorna a quantidade de material a ser enviado para cada destino 
+                # e o custo de cada da operação.
+                # Obs: as ações se referem à porcentagem da quantidade de material atualmente em estoque.
+                amounts, costs = self.ship_action.apply(action_values[next_action_idx:], max=material_to_ship)
+
+                # Retira do estoque o material a ser transportado
+                self.stock -= sum(amounts)
+                
+                # Se é uma fábrica
+                if self.processing_ratio > 0:
+                    # Calcula o custo de processamento (se refere à quantidade de matéria-prima)
+                    sum_amount = sum(amounts)
+                    total_cost += sum_amount * self.processing_cost
+                    if self.build_info:
+                        self.est_costs['processing'] = sum_amount * self.processing_cost
+                        self.est_units['processing'] = sum_amount
+                    
+                    # Se é uma fábrica, é necessário transformar matéria-prima em produto, ou seja, 
+                    # aplicar a razão de processamento
+                    amounts = [amount/self.processing_ratio for amount in amounts]
+                    costs   = [  cost/self.processing_ratio for   cost in costs  ]
+                
+                # Trata o envio dos materiais
+                for i in range(len(self.dests)):
+                    # Se tem algum material a ser enviado
+                    if amounts[i] > 0:
+                        self.dests[i]._ship_material(time_step+leadtimes[next_leadtime_idx], amounts[i])
                     next_leadtime_idx += 1
-            # Contabiliza os custos e estatísticas
-            total_cost += sum(costs)
-            if self.build_info:
-                self.est_costs['ship'] = sum(costs)
-                self.est_units['ship'] = sum(amounts)
+
+                # Contabiliza os custos e estatísticas de transporte
+                total_cost += sum(costs)
+                if self.build_info:
+                    self.est_costs['ship'] = sum(costs)
+                    self.est_units['ship'] = sum(amounts)
             
         # Sé um revendedor (nó de último nível) atende a demanda do cliente (o que for possível)
         elif self.last_level:

@@ -51,18 +51,18 @@ class TestSupplyChain2perStageEnv:
         obs, rew, _, _ = env.step(supply_action) # timestep=1
 
         assert np.allclose(obs, [-0.4       , -0.4       , -0.4       ,  0.        ,  1.        ,
-                                -0.6       , -0.2       , -1.        , -0.8       , -0.76      ,
-                                -1.        , -0.86666667, -0.76      , -1.        , -0.8       ,
+                                -0.6       , -0.2       , -1.        , -0.4       , -0.76      ,
+                                -1.        , -0.6       , -0.76      , -1.        , -0.8       ,
                                 -0.92      , -1.        , -0.86666667, -0.92      , -1.        ,
                                 -0.95      , -0.92      , -1.        , -0.93333333, -0.92      ,
                                 -1.        ,  0.6       ])
-        assert rew == -2255.0
+        assert rew == -1015.0
 
         assert env.nodes[0].shipments == [(2,60),(3,120)]
         assert env.nodes[0].stock == 60
         for i, node in enumerate(env.nodes[1:4]):
             assert node.shipments == [(2,60)]
-            if i == 0:
+            if i <= 2:
                 assert node.stock == 60
             else:
                 assert node.stock == 20
@@ -84,7 +84,7 @@ class TestSupplyChain2perStageEnv:
                                 -1.        , -0.68      , -1.        , -1.        , -1.        ,
                                 -0.88      , -1.        , -0.68      , -0.88666667, -1.        ,
                                 -1.        ,  0.2       ])
-        assert rew == -2149.0
+        assert rew == -3469.0
 
         assert env.nodes[0].shipments == [(3,120)]
         assert env.nodes[1].shipments == []
@@ -122,15 +122,17 @@ class TestSupplyChain2perStageEnv:
         obs, rew, _, _ = env.step(send_half_action) # timestep=4
 
         assert np.allclose(obs, [-0.6 , -0.2 , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
-                                -0.76, -1.  , -1.  , -0.76, -1.  , -1.  , -1.  , -0.84, -1.  ,
-                                -1.  , -0.84, -0.33, -1.  , -0.84, -1.  , -1.  , -0.84, -0.6 ])
-        assert rew == -6507.0
+                                -0.76, -1.  , -1.  , -0.76, -1.  , -1.  , -1.  , -0.86666667, -1.  ,
+                                -1.  , -0.86666667, -0.33, -1.  , -0.84, -1.  , -1.  , -0.84, -0.6 ])
+        assert np.round(rew,3) == -6400.333
         
         for node in env.nodes[:2]:
             assert node.shipments == []
         for node in env.nodes[2:4]:
-            assert node.shipments == [(5,60)]        
-        for node in env.nodes[4:]:
+            assert node.shipments == [(5,60)]
+        for node in env.nodes[4:6]:
+            assert np.allclose(node.shipments, [(6,33.333)])
+        for node in env.nodes[6:]:
             assert node.shipments == [(6,40)]
         for node in env.nodes[:-2]:
             assert node.stock == 0
@@ -140,15 +142,15 @@ class TestSupplyChain2perStageEnv:
         obs, rew, done, _ = env.step(send_half_action) # timestep=5
 
         assert np.allclose(obs, [ 0.4 ,  0.2 , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
-                                 -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -0.84, -0.92, -1.  ,
-                                 -0.84, -0.92, -0.45, -0.84, -1.  , -1.  , -0.84, -1.  , -1.  ])
+                                 -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -0.86666667, -0.92, -1.  ,
+                                 -0.86666667, -0.92, -0.45, -0.84, -1.  , -1.  , -0.84, -1.  , -1.  ])
         assert rew == -4479.0
         assert done == True
         
         for node in env.nodes[:4]:
             assert node.shipments == []
         for node in env.nodes[4:6]:
-            assert node.shipments == [(6,40), (7,10), (7,10)]
+            assert np.allclose(node.shipments, [(6,33.333), (7,10), (7,10)])
         for node in env.nodes[-2:0]:
             assert node.shipments == [(6,40)]
         for node in env.nodes[:-2]:
