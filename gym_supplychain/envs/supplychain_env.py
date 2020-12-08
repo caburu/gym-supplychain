@@ -455,8 +455,7 @@ class SupplyChainEnv(gym.Env):
         # - len(self.nodes)*1               : Níveis de estoque, 1 para cada nó da cadeia.
         # - len(self.nodes)*(avg_leadtime)  : Materiais em transporte; sendo l o leadtime médio, considera, para cada nó
         #                                     a quantidade de material em transporte no período t+1, t+2, ... t+(l-1), sum_{i>=l}t+i
-        # - 1                               : número de períodos para terminar o episódio
-        obs_space_size = len(self.last_level_nodes)+len(self.nodes)*(1+avg_leadtime)+1        
+        obs_space_size = len(self.last_level_nodes)+len(self.nodes)*(1+avg_leadtime)
 
         # O action_space é tratado como de [0,1] no código, então quando a ação é recebida o valor
         # é desnormalizado
@@ -579,9 +578,8 @@ class SupplyChainEnv(gym.Env):
         for node in self.nodes:
             nodes_obs += node.build_observation((self.time_step+1, self.time_step+self.avg_leadtime))        
 
-        # A observação é concatenação das demandas, com os dados nos nós mais quantos períodos 
-        # faltam para terminar o episódio (normalizado)
-        obs = np.concatenate((demands_obs, nodes_obs, [(self.total_time_steps-self.time_step)/self.total_time_steps]))
+        # A observação é concatenação das demandas com os dados nos nós
+        obs = np.concatenate((demands_obs, nodes_obs))
         
         # Por fim, normalizamos o estado para a faixa [-1,1]
         norm_obs = self._normalize_obs(obs)
