@@ -1,6 +1,8 @@
 import os
 import numpy as np
+
 from ..supplychain_env import SupplyChainEnv
+from .utils import check_build_info
 
 class TestSupplyChainEnv:
     def _data_folder(self):
@@ -21,7 +23,7 @@ class TestSupplyChainEnv:
                                     'last_level':True}
         return nodes_info
     
-    def _create_env(self, stochastic_leadtimes=False, avg_leadtime=2, max_leadtime=4):
+    def _create_env(self, stochastic_leadtimes=False, avg_leadtime=2, max_leadtime=4, build_info=False):
         nodes_info = self._create_simple_chain(initial_stock=10, stock_capacity=100, stock_cost=1, dest_cost=2, supply_cost=5,
                              supply_capacity=50, processing_cost=10, processing_capacity=100)
 
@@ -29,15 +31,15 @@ class TestSupplyChainEnv:
                  exceeded_stock_capacity_cost=1000, exceeded_process_capacity_cost=1000,
                  demand_range=(0,5), demand_std=None, demand_sen_peaks=None, avg_demand_range=None, 
                  processing_ratio=2, stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime,
-                 total_time_steps=5, seed=None, build_info=False, demand_perturb_norm=False)
+                 total_time_steps=5, seed=None, build_info=build_info, demand_perturb_norm=False)
         
         return env
 
-    def _create_simpleenv(self):
-        return self._create_env(stochastic_leadtimes=False, avg_leadtime=2, max_leadtime=2)
+    def _create_simpleenv(self, build_info = False):
+        return self._create_env(stochastic_leadtimes=False, avg_leadtime=2, max_leadtime=2, build_info=build_info)
 
-    def _create_stocleadtimes_simpleenv(self):
-        return self._create_env(stochastic_leadtimes=True, avg_leadtime=2, max_leadtime=4)
+    def _create_stocleadtimes_simpleenv(self, build_info = False):
+        return self._create_env(stochastic_leadtimes=True, avg_leadtime=2, max_leadtime=4, build_info=build_info)
 
     def test_initial_stocks(self):
         """ Testa a capacidade, o custo e o valor do estoque ao resetar o ambiente estão corretos.
@@ -276,4 +278,12 @@ class TestSupplyChainEnv:
                 assert np.all(leadtimes[10*seed+epis] == env.leadtimes)
                 done = False
                 while not done:
-                    _, _, done, _ = env.step(env.action_space.sample())
+                    _, _, done, _ = env.step(env.action_space.sample())    
+   
+    def test_build_info_simpleenv(self):
+        env = self._create_simpleenv(build_info=True)
+        check_build_info(env)
+
+    def test_build_info_stocleadtimes(self):
+        env = self._create_stocleadtimes_simpleenv(build_info=True)
+        check_build_info(env)

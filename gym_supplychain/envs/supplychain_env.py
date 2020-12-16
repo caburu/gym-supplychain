@@ -159,6 +159,13 @@ class SC_Node:
     def act(self, action_values, leadtimes, time_step, customer_demand=None):
         total_cost = 0
         next_leadtime_idx = 0
+        
+        # Zerando custos e unidades anteriores
+        if self.build_info:
+            for key in self.est_costs:
+                self.est_costs[key] = 0
+            for key in self.est_units:
+                self.est_units[key] = 0
 
         arrived_material = 0
         # O primeiro passo é receber o material que está pra chegar
@@ -179,11 +186,6 @@ class SC_Node:
                 self.est_units['stock_penalty'] = self.stock - self.stock_capacity
             # Descartando material excedente
             self.stock = self.stock_capacity
-        else:
-            # Se não passou da capacidade, não há penalização
-            if self.build_info:
-                self.est_costs['stock_penalty'] = 0
-                self.est_units['stock_penalty'] = 0 
                 
         # Se o nó é um fornecedor, executa a ação de fornecimento
         next_action_idx = 0

@@ -6,6 +6,7 @@ import pytest
 # TODO: Testar caso de descarte por excesso de estoque
 
 from ..supplychain_2perstage_env import SupplyChain2perStageEnv, SupplyChain2perStageSeasonalEnv
+from .utils import check_rewards, check_build_info
 
 class TestSupplyChain2perStageEnv:
     def _data_folder(self):
@@ -28,10 +29,12 @@ class TestSupplyChain2perStageEnv:
     
     # @pytest.mark.skip
     def test_chain_dynamics(self):
-        env = SupplyChain2perStageEnv(total_time_steps=5)
+        env = SupplyChain2perStageEnv(total_time_steps=5, build_info=True)
+        
         
         env.seed(0)
         obs = env.reset() # timestep=0
+        rewards = 0
 
         assert np.allclose(obs, [ 0.  , -1.  , -1.  ,  0.  ,  0.  , -1.  , -0.2 , -0.2 , -1.  ,
                                  -0.76, -0.76, -1.  , -0.76, -0.76, -1.  , -0.92, -0.92, -1.  ,
@@ -48,7 +51,9 @@ class TestSupplyChain2perStageEnv:
         supply_action = np.array([1]+[0]*(env.action_space.shape[0]-1))
         supply_action = 2*supply_action-1
 
-        obs, rew, _, _ = env.step(supply_action) # timestep=1
+        obs, rew, _, info = env.step(supply_action) # timestep=1
+        rewards += rew
+        check_rewards(rewards, info)
 
         assert np.allclose(obs, [-0.4       , -0.4       , -0.4       ,  0.        ,  1.        ,
                                 -0.6       , -0.2       , -1.        , -0.4       , -0.76      ,
@@ -76,8 +81,10 @@ class TestSupplyChain2perStageEnv:
         send_all_action = np.array([0,1,1]*2+[1]*2*4)
         send_all_action = 2*send_all_action-1
         
-        obs, rew, _, _ = env.step(send_all_action) # timestep=2
-
+        obs, rew, _, info = env.step(send_all_action) # timestep=2
+        rewards += rew
+        check_rewards(rewards, info)
+        
         assert np.allclose(obs, [ 0.4       ,  0.8       , -1.        ,  1.        , -1.        ,
                                 -1.        , -1.        , -1.        , -1.        , -1.        ,
                                 -0.04      , -1.        , -1.        , -1.        , -1.        ,
@@ -103,7 +110,9 @@ class TestSupplyChain2perStageEnv:
         # ação não fornecer material possível e enviar metade do material para cada destino
         send_half_action = np.array([0,0.5,1]*2+[0.5,1]*4)
         send_half_action = 2*send_half_action-1
-        obs, rew, _, _ = env.step(send_half_action) # timestep=3
+        obs, rew, _, info = env.step(send_half_action) # timestep=3
+        rewards += rew
+        check_rewards(rewards, info)
 
         assert np.allclose(obs, [-0.4 ,  0.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
                                 -0.04, -0.76, -1.  , -1.  , -0.76, -1.  , -0.68, -1.  , -1.  ,
@@ -119,7 +128,9 @@ class TestSupplyChain2perStageEnv:
         for node in env.nodes:
             assert node.stock == 0
         
-        obs, rew, _, _ = env.step(send_half_action) # timestep=4
+        obs, rew, _, info = env.step(send_half_action) # timestep=4
+        rewards += rew
+        check_rewards(rewards, info)
 
         assert np.allclose(obs, [-0.6 , -0.2 , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
                                 -0.76, -1.  , -1.  , -0.76, -1.  , -1.  , -1.  , -0.86666667, -1.  ,
@@ -139,7 +150,9 @@ class TestSupplyChain2perStageEnv:
         assert env.nodes[-2].stock == 67
         assert env.nodes[-1].stock == 0
         
-        obs, rew, done, _ = env.step(send_half_action) # timestep=5
+        obs, rew, done, info = env.step(send_half_action) # timestep=5
+        rewards += rew
+        check_rewards(rewards, info)
 
         assert np.allclose(obs, [ 0.4 ,  0.2 , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
                                  -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -0.86666667, -0.92, -1.  ,
@@ -323,3 +336,11 @@ class TestSupplyChain2perStageSeasonalEnv:
                 done = False
                 while not done:
                     _, _, done, _ = env.step(env.action_space.sample())
+                
+    def test_build_info(self):
+        env = SupplyChain2perStageSeasonalEnv(
+                stochastic_leadtimes=True, avg_leadtime=2, max_leadtime=4,
+                demand_perturb_norm=True, build_info=True)
+        check_build_info(env)
+
+
