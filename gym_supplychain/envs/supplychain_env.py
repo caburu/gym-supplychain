@@ -6,11 +6,9 @@ from gym import spaces
 
 from .demands_generator import generate_demand
 
-# TODO: Validar build_info
-# TODO: breakpoint nos descartes de material de processamento e de transporte
-# TODO: normalização de estado não bateu certinho (capacidade de transporte?).
+# TODO: testar com multiproduto
+# TODO: atualizar casos de teste
 
-# TODO: evitar envio de material com quantidade zero.
 # TODO: melhorar desempenho: usar sempre numpy array ao invés de listas.
 
 
@@ -747,7 +745,7 @@ if __name__ == '__main__':
     num_products     = 1
     demand_range     = (10,20)
     stock_capacity   = 300
-    ship_capacity    = 600
+    ship_capacity    = 300
     supply_capacity  = 50
     processing_capacity = 50
     processing_ratio = 3
