@@ -168,32 +168,33 @@ class SC_Node:
 
     def _treat_int_or_list_param(self, param, default_value=0):
         # se foi passada uma lista, ou ela deve ser vazia ou ter um valor por produto
-        if param is list:
+        if type(param) is list:
             if len(param) > 0:
                 assert len(param) == self.num_products
             else:
                 param = [default_value]*self.num_products
         # se não foi passada uma lista, e sim um valor único ele será replicado para todos os produtos
-        elif param is int:
+        elif type(param) is int:
             param = [param]*self.num_products
         else:
             raise ValueError('Invalid param: shoube an int or a list with one value per product')
         
         return param
 
-    def define_destinations(self, dests, ship_capacities_by_dest, ship_costs_by_prod):
+    def define_destinations(self, dests, ship_capacities_by_dest, ship_costs):
         self.dests = dests
         self.ship_capacities = ship_capacities_by_dest
         for prod, stock_capacity in enumerate(self.stock_capacities):
             if stock_capacity > 0:
-                self.ship_actions[prod] = SC_Action('SHIP', capacity=stock_capacity, costs=ship_costs_by_prod[prod])
+                self.ship_actions[prod] = SC_Action('SHIP', capacity=stock_capacity, costs=ship_costs[prod])
                 self.num_actions += 1
             else:
                 self.ship_actions[prod] = None
 
         # Atualiza a capacidade de transporte do destino
         for dest_idx, dest in enumerate(self.dests):
-            dest.max_ship += ship_capacities_by_dest[dest_idx]
+            for prod in range(self.num_products):
+                dest.max_ship[prod] += ship_capacities_by_dest[dest_idx]
 
     def act(self, action_values, leadtimes, time_step, customer_demand=None):
         total_cost = 0
@@ -221,10 +222,10 @@ class SC_Node:
         for prod in range(self.num_products):
             if self.stock[prod] > self.stock_capacities[prod]:
                 # Calculando penalização
-                total_cost += self.exceeded_stock_capacity_cost*(self.stock[prod] - self.stock_capacity[prod])
+                total_cost += self.exceeded_stock_capacity_cost*(self.stock[prod] - self.stock_capacities[prod])
                 if self.build_info:
-                    self.est_costs['stock_penalty'][prod] = self.exceeded_stock_capacity_cost*(self.stock[prod] - self.stock_capacity[prod])
-                    self.est_units['stock_penalty'][prod] = self.stock[prod] - self.stock_capacity[prod]
+                    self.est_costs['stock_penalty'][prod] = self.exceeded_stock_capacity_cost*(self.stock[prod] - self.stock_capacities[prod])
+                    self.est_units['stock_penalty'][prod] = self.stock[prod] - self.stock_capacities[prod]
                 # Descartando material excedente
                 self.stock[prod] = self.stock_capacities[prod]
                 
@@ -246,114 +247,120 @@ class SC_Node:
                     self.est_costs['supply'][prod] = cost
                     self.est_units['supply'][prod] = amount
 
-        # A princípio toda a capacidade de transporte para cada destino está disponível.
-        # À medida que os materiais forem sendo enviados, a quantidade é descontada da capacidade disponível
-        available_ship_capacities = self.ship_capacities.copy()        
-        # No caso de uma fábrica, a princípio toda a capacidade de processamento está disponível.
-        # E o mesmo tratamento é feito
-        available_processing_capacity = self.processing_capacity        
+        # Se não é um revendedor
+        if not self.last_level:
+            # A princípio toda a capacidade de transporte para cada destino está disponível.
+            # À medida que os materiais forem sendo enviados, a quantidade é descontada da capacidade disponível
+            available_ship_capacities = self.ship_capacities.copy()        
+            # No caso de uma fábrica, a princípio toda a capacidade de processamento está disponível.
+            # E o mesmo tratamento é feito
+            available_processing_capacity = self.processing_capacity        
 
-        # Executa as ações de envio de material para o próximo estágio da cadeia, para cada produto
-        for prod, ship_action in enumerate(self.ship_actions):
-            # Se tem ação de envio para esse produto
-            if ship_action:
+            next_prod_leadtime_idx = next_leadtime_idx
+            # Executa as ações de envio de material para o próximo estágio da cadeia, para cada produto
+            for prod, ship_action in enumerate(self.ship_actions):
+                # Se tem ação de envio para esse produto
+                if ship_action:
 
-                exceeded_ship_capacity = 0
-                exceeded_processing_capacity = 0
+                    exceeded_ship_capacity = 0
+                    exceeded_processing_capacity = 0
 
-                # O material a ser considerado para envio é todo o estoque atual do produto em questão
-                material_to_ship = self.stock[prod]
-                
-                # Se tem algum material a ser enviado
-                if material_to_ship > 0:
-                
-                    # A aplicação da ação retorna a quantidade de material a ser enviado para cada destino 
-                    # e o custo de cada da operação.
-                    # Obs: as ações se referem à porcentagem da quantidade de material atualmente em estoque.
-                    amounts, costs = ship_action.apply(action_values[next_action_idx:next_action_idx+len(self.dests)], maximum=material_to_ship)
+                    # O material a ser considerado para envio é todo o estoque atual do produto em questão
+                    material_to_ship = self.stock[prod]
                     
-                    # As quantidades a serem enviadas geralmente são as mesmas que saíram do estoque
-                    # isso pode ser diferente para as fábricas, porque deve-se aplicar as razões de processamento.
-                    amounts_to_ship = amounts.copy()
+                    # Se tem algum material a ser enviado
+                    if material_to_ship > 0:
                     
-                    # Antes de enviar o material é necessário verificar sua viabilidade, ou seja,
-                    # se atende às capacidades de transporte e processamento,
-                    # além de aplicar a razão de processamnento
-                                        
-                    if self.processing_capacity > 0:
-                        for i, amount in enumerate(amounts):
+                        # A aplicação da ação retorna a quantidade de material a ser enviado para cada destino 
+                        # e o custo de cada da operação.
+                        # Obs: as ações se referem à porcentagem da quantidade de material atualmente em estoque.
+                        amounts, costs = ship_action.apply(action_values[next_action_idx:next_action_idx+len(self.dests)], maximum=material_to_ship)
+                        
+                        # As quantidades a serem enviadas geralmente são as mesmas que saíram do estoque
+                        # isso pode ser diferente para as fábricas, porque deve-se aplicar as razões de processamento.
+                        amounts_to_ship = amounts.copy()
+                        
+                        # Antes de enviar o material é necessário verificar sua viabilidade, ou seja,
+                        # se atende às capacidades de transporte e processamento,
+                        # além de aplicar a razão de processamnento
+                                            
+                        if self.processing_capacity > 0:
+                            for i, amount in enumerate(amounts):
+                                if amount > 0:
+                                    # se o material a ser enviado para um destino excede a capacidade de processamento ainda disponível
+                                    if amount > available_processing_capacity:
+                                        # contabiliza o que excede a capacidade da fábrica
+                                        exceeded_processing_capacity += amount - available_processing_capacity
+                                        # desconsidera o material excedente
+                                        amounts[i] = available_processing_capacity
+                                    # atualiza a capacidade ainda disponível da fábrica
+                                    available_processing_capacity -= amounts[i]
+                                # trata a razão de processamento no material a ser enviado
+                                amounts_to_ship[i] = amounts[i]/self.processing_ratio[prod]
+                        
+                        for i, amount in enumerate(amounts_to_ship):
                             if amount > 0:
-                                # se o material a ser enviado para um destino excede a capacidade de processamento ainda disponível
-                                if amount > available_processing_capacity:
-                                    # contabiliza o que excede a capacidade da fábrica
-                                    exceeded_processing_capacity += amount - available_processing_capacity
+                                # se o material a ser enviado para um destino excede a capacidade de transporte ainda disponível
+                                # para o destino
+                                if amount > available_ship_capacities[i]:
+                                    # contabiliza o que excede a capacidade de transporte
+                                    exceeded_ship_capacity += amount - available_ship_capacities[i]
                                     # desconsidera o material excedente
-                                    amounts[i] = available_processing_capacity
-                                # atualiza a capacidade ainda disponível da fábrica
-                                available_processing_capacity -= amounts[i]
-                            # trata a razão de processamento no material a ser enviado
-                            amounts_to_ship[i] = amounts[i]/self.processing_ratio[prod]
-                    
-                    for i, amount in enumerate(amounts_to_ship):
-                        if amount > 0:
-                            # se o material a ser enviado para um destino excede a capacidade de transporte ainda disponível
-                            # para o destino
-                            if amount > available_ship_capacities[i]:
-                                # contabiliza o que excede a capacidade de transporte
-                                exceeded_ship_capacity += amount - available_ship_capacities[i]
-                                # desconsidera o material excedente
-                                amounts_to_ship[i] = available_ship_capacities[i]
-                                # já que a quantidade de material a ser enviada foi alterada, precisamos alterar também
-                                # a quantidade de material que está saindo dos estoques.
-                                if self.processing_capacity > 0:
-                                    amounts[i] = amounts_to_ship[i]*self.processing_ratio[prod]
-                                else:
-                                    amounts[i] = amounts_to_ship[i]
-                                # atualiza a capacidade ainda disponível de transporte
-                                available_ship_capacities[i] -= amounts[i]
+                                    amounts_to_ship[i] = available_ship_capacities[i]
+                                    # já que a quantidade de material a ser enviada foi alterada, precisamos alterar também
+                                    # a quantidade de material que está saindo dos estoques.
+                                    if self.processing_capacity > 0:
+                                        amounts[i] = amounts_to_ship[i]*self.processing_ratio[prod]
+                                    else:
+                                        amounts[i] = amounts_to_ship[i]
+                                    # atualiza a capacidade ainda disponível de transporte
+                                    available_ship_capacities[i] -= amounts[i]
 
-                    # Retira do estoque o material que está saindo
-                    total_leaving_stock = sum(amounts)
-                    self.stock[prod] -= total_leaving_stock
+                        # Retira do estoque o material que está saindo
+                        total_leaving_stock = sum(amounts)
+                        self.stock[prod] -= total_leaving_stock
 
-                    # Se é uma fábrica, precisamos contabilizar o custo de processamento
-                    # (que se refere à matéria-prima) e o custo de transporte será referente ao
-                    # produto final que foi enviado.
-                    if self.processing_capacity > 0:                        
-                        total_cost += total_leaving_stock * self.processing_cost
+                        # Se é uma fábrica, precisamos contabilizar o custo de processamento
+                        # (que se refere à matéria-prima) e o custo de transporte será referente ao
+                        # produto final que foi enviado.
+                        if self.processing_capacity > 0:                        
+                            total_cost += total_leaving_stock * self.processing_cost
+                            if self.build_info:
+                                self.est_costs['processing'][prod] = total_leaving_stock * self.processing_cost
+                                self.est_units['processing'][prod] = total_leaving_stock                        
+                        
+                        # Trata o envio dos materiais
+                        for i in range(len(self.dests)):
+                            # Se tem algum material a ser enviado
+                            if amounts_to_ship[i] > 0:
+                                self.dests[i]._ship_material(time_step+leadtimes[next_leadtime_idx], prod, amounts_to_ship[i])
+                            next_leadtime_idx += 1
+
+                        # Contabiliza os custos e estatísticas de transporte
+                        # Os custos são atualizados porque excessos podem ter sido descartados
+                        total_cost += ship_action.calculate_costs(amounts_to_ship)
                         if self.build_info:
-                            self.est_costs['processing'][prod] = total_leaving_stock * self.processing_cost
-                            self.est_units['processing'][prod] = total_leaving_stock                        
+                            self.est_costs['ship'][prod] = sum(costs)
+                            self.est_units['ship'][prod] = sum(amounts)
+            
+                    # Agora que o processamento e transporte foi tratado, vamos contabiliza os possíveis
+                    # custos de penalização por ter excedido as capacidades de processamento e transporte
                     
-                    # Trata o envio dos materiais
-                    for i in range(len(self.dests)):
-                        # Se tem algum material a ser enviado
-                        if amounts_to_ship[i] > 0:
-                            self.dests[i]._ship_material(time_step+leadtimes[next_leadtime_idx], prod, amounts_to_ship[i])
-                        next_leadtime_idx += 1
-
-                    # Contabiliza os custos e estatísticas de transporte
-                    # Os custos são atualizados porque excessos podem ter sido descartados
-                    total_cost += ship_action.calculate_costs(amounts_to_ship)
+                    total_cost += self.exceeded_process_capacity_cost * exceeded_processing_capacity
                     if self.build_info:
-                        self.est_costs['ship'][prod] = sum(costs)
-                        self.est_units['ship'][prod] = sum(amounts)
-        
-                # Agora que o processamento e transporte foi tratado, vamos contabiliza os possíveis
-                # custos de penalização por ter excedido as capacidades de processamento e transporte
-                
-                total_cost += self.exceeded_process_capacity_cost * exceeded_processing_capacity
-                if self.build_info:
-                    self.est_costs['process_penalty'][prod] = self.exceeded_process_capacity_cost*exceeded_processing_capacity
-                    self.est_units['process_penalty'][prod] = exceeded_processing_capacity
-                
-                total_cost += self.exceeded_ship_capacity_cost * exceeded_ship_capacity
-                if self.build_info:
-                    self.est_costs['process_penalty'][prod] = self.exceeded_ship_capacity_cost*exceeded_ship_capacity
-                    self.est_units['process_penalty'][prod] = exceeded_ship_capacity        
+                        self.est_costs['process_penalty'][prod] = self.exceeded_process_capacity_cost*exceeded_processing_capacity
+                        self.est_units['process_penalty'][prod] = exceeded_processing_capacity
+                    
+                    total_cost += self.exceeded_ship_capacity_cost * exceeded_ship_capacity
+                    if self.build_info:
+                        self.est_costs['process_penalty'][prod] = self.exceeded_ship_capacity_cost*exceeded_ship_capacity
+                        self.est_units['process_penalty'][prod] = exceeded_ship_capacity
+                    
+                    # Volta a posição dos lead times de transporte porque eles são os mesmos independente do produto.
+                    next_leadtime_idx = next_prod_leadtime_idx
 
-        # Sé um revendedor (nó de último nível) atende a demanda do cliente por cada produto (o que for possível)
-        if self.last_level:
+        # Se é um revendedor (nó de último nível) atende a demanda do cliente por cada produto (o que for possível)
+        else:
             for prod in range(self.num_products):
                 max_possible = min(self.stock[prod], customer_demand[prod])
                 self.stock[prod] -= max_possible
@@ -365,7 +372,7 @@ class SC_Node:
 
         # Contabiliza os custos e estatísticas do material que ficou no estoque de cada produto
         for prod in range(self.num_products):
-            total_cost += self.stock[prod]*self.stock_cost
+            total_cost += self.stock[prod]*self.stock_cost[prod]
             if self.build_info:
                 self.est_costs['stock'] = self.stock[prod]*self.stock_cost
                 self.est_units['stock'] = self.stock[prod]
@@ -379,13 +386,13 @@ class SC_Node:
         self.stock = self.initial_stock
         self.shipments_by_prod = [[]*self.num_products]
         if self.initial_supply:
-            for i in range(len(self.initial_supply)):
-                for prod in range(self.num_products):
-                    self._ship_material(i+1, prod, self.initial_supply[i][prod])
+            for prod in range(self.num_products):
+                for i in range(len(self.initial_supply)):                
+                    self._ship_material(i+1, prod, self.initial_supply[prod][i])
         if self.initial_shipments:
-            for i in range(len(self.initial_shipments)):
-                for prod in range(self.num_products):
-                    self._ship_material(i+1, prod, self.initial_shipments[i][prod])
+            for prod in range(self.num_products):
+                for i in range(len(self.initial_shipments)):                
+                    self._ship_material(i+1, prod, self.initial_shipments[prod][i])
         
         # Atributos estatísticos para depuração
         if self.build_info:
@@ -409,7 +416,7 @@ class SC_Node:
         obs = [current_stock[i]/self.stock_capacities[i] for i in range(len(current_stock))]
 
         # Depois as informações de transporte são agrupadas por produto
-        for prod, shipments in enumerate(self.shipments_by_prod):
+        for shipments in self.shipments_by_prod:
             # Se não tem nenhum carregamento pra chegar, cria os carregamentos vazios
             if not shipments:
                 obs += [0]*(shipments_range[1]-shipments_range[0]+1)
@@ -513,8 +520,10 @@ class SupplyChainEnv(gym.Env):
                 node = nodes_dict[node_name]
                 if 'destinations' in node_info:
                     node.define_destinations([nodes_dict[dest_name] for dest_name in node_info['destinations']],
+                                             node_info['ship_capacity'],
                                              node_info['dest_costs'])
 
+        self.num_products = num_products
         self.build_info   = build_info
         self.stochastic_leadtimes = stochastic_leadtimes
         self.avg_leadtime = avg_leadtime
@@ -536,10 +545,13 @@ class SupplyChainEnv(gym.Env):
         self.demand_perturb_norm = demand_perturb_norm
         
         if stochastic_leadtimes:
+            # Os lead times são um para cada combinação produto/fornecedor, mais
+            # um para cada link de transporte (nesse caso não é por produto porque
+            # a capacidade de transporte é compartilhada)
             self.count_leadtimes_per_timestep = 0
             for node in self.nodes:            
-                if node.supply_action:
-                    self.count_leadtimes_per_timestep += 1
+                if node.supply_actions:
+                    self.count_leadtimes_per_timestep += self.num_products
                 self.count_leadtimes_per_timestep += len(node.dests) if node.dests else 0
 
         # Não suporta demanda fixa (apenas para evitar ficar fazendo if toda hora 
@@ -552,12 +564,15 @@ class SupplyChainEnv(gym.Env):
             action_space_size += node.num_expected_actions()            
 
         # As observações (estados) são dados pela:
-        # - len(self.last_level_nodes)      : Demandas, sendo 1 para cada varejista
-        # - len(self.nodes)*1               : Níveis de estoque, 1 para cada nó da cadeia.
-        # - len(self.nodes)*(avg_leadtime)  : Materiais em transporte; sendo l o leadtime médio, considera, para cada nó
-        #                                     a quantidade de material em transporte no período t+1, t+2, ... t+(l-1), sum_{i>=l}t+i
-        # - 1                               : número de períodos para terminar o episódio
-        obs_space_size = len(self.last_level_nodes)+len(self.nodes)*(1+avg_leadtime)+1        
+        # - len(self.last_level_nodes)      : 
+        # - len(self.nodes)*1               : 
+        # - 
+        # - 1                               : 
+        obs_space_size = (len(self.last_level_nodes)*num_products       # Demandas, sendo 1 para cada varejista e produto
+                          + len(self.nodes)*num_products                # Níveis de estoque, 1 para cada nó da cadeia e produto.
+                          + len(self.nodes)*num_products*(avg_leadtime) # Materiais em transporte; por produto, sendo l o leadtime médio, considera, para cada nó
+                                                                        # a quantidade de material em transporte no período t+1, t+2, ... t+(l-1), sum_{i>=l}t+i  
+                          + 1)                                          # número de períodos para terminar o episódio
 
         # O action_space é tratado como de [0,1] no código, então quando a ação é recebida o valor
         # é desnormalizado
@@ -573,8 +588,9 @@ class SupplyChainEnv(gym.Env):
 
         self.current_reward = 0
         self.episode_rewards = 0
-        # gerando as demandas de todo o episódio
-        self.customer_demands = generate_demand(self.rand_generator, (self.total_time_steps+1, len(self.last_level_nodes)), 
+        # gerando as demandas de todo o episódio (por período/varejista/produto)
+        self.customer_demands = generate_demand(self.rand_generator, 
+                                                (self.total_time_steps+1, len(self.last_level_nodes), self.num_products), 
                                                 self.total_time_steps, self.demand_range[0], self.demand_range[1],
                                                 std=self.demand_std, sen_peaks=self.demand_sen_peaks,
                                                 minavg=self.minavg_demand, maxavg=self.maxavg_demand,
@@ -603,9 +619,9 @@ class SupplyChainEnv(gym.Env):
     def _initial_est_episode(self):
         return {'rewards':0, 
                 'costs':{
-                    'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'processing_penalty':0, 'ship':0, 'unmet_dem':0},
+                    'stock':[], 'stock_pen':[], 'supply':[], 'process':[], 'process_pen':[], 'ship':[], 'ship_pen':[], 'unmet_dem':[]},
                 'units':{
-                    'stock':0, 'stock_penalty':0, 'supply':0, 'processing':0, 'processing_penalty':0, 'ship':0, 'unmet_dem':0}
+                    'stock':[], 'stock_pen':[], 'supply':[], 'process':[], 'process_pen':[], 'ship':[], 'ship_pen':[], 'unmet_dem':[]}
                 }
         
     def _denormalize_action(self, action):
@@ -626,7 +642,8 @@ class SupplyChainEnv(gym.Env):
         for node in self.nodes:
             actions_to_apply   = action[next_action_idx:next_action_idx+node.num_expected_actions()]
             if self.stochastic_leadtimes:
-                leadtimes_to_apply = self.leadtimes[self.time_step-1, next_action_idx:next_action_idx+node.num_expected_actions()]
+                num_leadtime_values = len(node.supply_actions) + len(node.ship_actions)//self.num_products
+                leadtimes_to_apply = self.leadtimes[self.time_step-1, next_action_idx:next_action_idx+num_leadtime_values]
             else:
                 leadtimes_to_apply = node.num_expected_actions()*[self.avg_leadtime]
             
@@ -673,7 +690,7 @@ class SupplyChainEnv(gym.Env):
                 - O quanto de material está chegando nos períodos seguintes.
         """ 
         # Primeiro guardamos as demandas (normalizadas)
-        demands_obs = (self.customer_demands[self.time_step,:] - self.demand_range[0])/(self.demand_range_value)
+        demands_obs = (self.customer_demands[self.time_step,:].flatten() - self.demand_range[0])/(self.demand_range_value)
             
         # Depois pegamos os dados de cada nó
         nodes_obs = []
@@ -708,8 +725,10 @@ class SupplyChainEnv(gym.Env):
         self.rand_generator = np.random.RandomState(seed)
 
 if __name__ == '__main__':
+    num_products     = 1
     demand_range     = (10,20)
     stock_capacity   = 300
+    ship_capacity    = 600
     supply_capacity  = 50
     processing_capacity = 50
     processing_ratio = 3
@@ -728,33 +747,35 @@ if __name__ == '__main__':
     # O custo de excesso de estoque talvez pudesse nem existir, já que o custo já incorrido no material
     # é perdido. Mas podemos considerar também que existiria um custo de desfazer do material.
     exceeded_capacity_cost = 10*stock_cost
+    exceeded_ship_capacity_cost = exceeded_capacity_cost
     
     total_time_steps = 5
     
     nodes_info = {}
     nodes_info['Supplier 1'] = {'initial_stock':10, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'supply_capacity':supply_capacity, 'supply_cost':supply_cost,
-                                'destinations':['Factory  1', 'Factory  2'], 'dest_costs':[dest_cost]*2}
+                                'destinations':['Factory  1', 'Factory  2'], 'dest_costs':[dest_cost]*2, 'ship_capacity':[ship_capacity]*2}
     nodes_info['Supplier 2'] = {'initial_stock':0, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'supply_capacity':supply_capacity, 'supply_cost':supply_cost,
-                                'destinations':['Factory  1', 'Factory  2'], 'dest_costs':[dest_cost]*2}
+                                'destinations':['Factory  1', 'Factory  2'], 'dest_costs':[dest_cost]*2, 'ship_capacity':[ship_capacity]*2}
     nodes_info['Factory  1'] = {'initial_stock':0, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'processing_capacity':processing_capacity, 'processing_cost':processing_cost,
-                                'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[dest_cost]*2}
+                                'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[dest_cost]*2, 'ship_capacity':[ship_capacity]*2}
     nodes_info['Factory  2'] = {'initial_stock':0, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'processing_capacity':processing_capacity, 'processing_cost':processing_cost,
-                                'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[dest_cost]*2}
+                                'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[dest_cost]*2, 'ship_capacity':[ship_capacity]*2}
     nodes_info['Wholesal 1'] = {'initial_stock':10, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
-                                'destinations':['Retailer 1', 'Retailer 2'], 'dest_costs':[dest_cost]*2}
+                                'destinations':['Retailer 1', 'Retailer 2'], 'dest_costs':[dest_cost]*2, 'ship_capacity':[ship_capacity]*2}
     nodes_info['Wholesal 2'] = {'initial_stock':15, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
-                                'destinations':['Retailer 1', 'Retailer 2'], 'dest_costs':[dest_cost]*2}
+                                'destinations':['Retailer 1', 'Retailer 2'], 'dest_costs':[dest_cost]*2, 'ship_capacity':[ship_capacity]*2}
     nodes_info['Retailer 1'] = {'initial_stock':10, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'last_level':True}
     nodes_info['Retailer 2'] = {'initial_stock':20, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'last_level':True}
 
-    env = SupplyChainEnv(nodes_info, demand_range=demand_range, unmet_demand_cost=unmet_demand_cost, 
+    env = SupplyChainEnv(nodes_info, num_products=num_products, demand_range=demand_range, unmet_demand_cost=unmet_demand_cost, 
                          exceeded_stock_capacity_cost=exceeded_capacity_cost, exceeded_process_capacity_cost=exceeded_capacity_cost,
+                         exceeded_ship_capacity_cost=exceeded_ship_capacity_cost,
                          processing_ratio=processing_ratio, 
                          stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime,
                          total_time_steps=total_time_steps)
