@@ -6,8 +6,13 @@ from gym import spaces
 
 from .demands_generator import generate_demand
 
+# TODO: continua checando saída do código main do sazonal (timestep 1 dá diferença)
+# TODO: passar ship_capacity pra 1700 pra ver se bate o estado
+# TODO: definir valores padrões ao criar o ambiente (ideal é que mantivesse o comportamento anterior)
 # TODO: testar com multiproduto
 # TODO: atualizar casos de teste
+
+
 
 # TODO: melhorar desempenho: usar sempre numpy array ao invés de listas.
 
@@ -397,11 +402,11 @@ class SC_Node:
         self.shipments_by_prod = [[]*self.num_products]
         if self.initial_supply:
             for prod in range(self.num_products):
-                for i in range(len(self.initial_supply)):                
+                for i in range(len(self.initial_supply[prod])):                
                     self._ship_material(i+1, prod, self.initial_supply[prod][i])
         if self.initial_shipments:
             for prod in range(self.num_products):
-                for i in range(len(self.initial_shipments)):                
+                for i in range(len(self.initial_shipments[prod])):                
                     self._ship_material(i+1, prod, self.initial_shipments[prod][i])
         
         # Atributos estatísticos para depuração

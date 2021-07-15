@@ -76,7 +76,7 @@ def senoidal_data(rand_generator, horizon=360, dem_shape=(361,2), minv=0, maxv=4
     for period in range(dem_shape[0]):
         for d in range(dem_shape[1]):
             dem = minavg + half_curve * (1 + np.sin(sin_arg*period)) + perturb[period,d]
-            data[period,d] =  cut_limit_data(int(round(dem)), minv, maxv)
+            data[period,d] =  cut_limit_data(int(np.round(dem)), minv, maxv)
     
     return data
 

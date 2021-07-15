@@ -1,7 +1,7 @@
 import os
 import numpy as np
-import pytest
 
+# TODO: Testar com mais de um produto
 # TODO: Testar dinâmica da cadeia sazonal (com leadtime)
 # TODO: Testar caso de descarte por excesso de estoque
 
@@ -22,9 +22,9 @@ class TestSupplyChain2perStageEnv:
         for id, node in enumerate(env.nodes):
             assert node.stock == 0
             if id % 2 == 0:
-                assert node.stock_capacity == 200
+                assert node.stock_capacities[0] == 200
             else:
-                assert node.stock_capacity == 300
+                assert node.stock_capacities[0] == 300
             assert node.stock_cost == 1
     
     # @pytest.mark.skip
