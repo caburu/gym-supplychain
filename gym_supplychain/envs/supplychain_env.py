@@ -6,6 +6,12 @@ from gym import spaces
 
 from .demands_generator import generate_demand
 
+# TODO: Teste com 20 timesteps deu diferença a partir do décimo
+# TODO: normalização de estado não bateu certinho (capacidade de transporte?).
+# TODO: evitar envio de material com quantidade zero.
+# TODO: melhorar desempenho: usar sempre numpy array ao invés de listas.
+
+
 class SC_Action:
     """ Define uma tipo de ação do ambiente da Cadeia de Suprimentos, para um tipo de produto.
 
@@ -75,7 +81,6 @@ class SC_Action:
                 for value, idx in tuples:
                     # o corte vai até o valor da ação desse destino
                     final_cut = value 
-                    # precisamos arredondar a quantidade de material pois ela é inteira
                     amount = (final_cut-initial_cut)*limit
                     # tratamento para evitar problemas de arredondamento
                     if amount > available:
@@ -119,10 +124,12 @@ class SC_Node:
                  unmet_demand_cost=1, max_leadtime=4, build_info=False):
         self.build_info = build_info
         self.label = label
-        self.supply_actions = {}
-        self.ship_actions = {}
         self.num_products = num_products
-        self.num_actions = 0
+        self.supply_actions = [[]*self.num_products]
+        self.ship_actions = [[]*self.num_products]
+        self.num_supply_actions = 0
+        self.num_ship_actions = 0
+        
         supply_capacity = self._treat_int_or_list_param(supply_capacity)
         supply_cost = self._treat_int_or_list_param(supply_cost)
 
@@ -132,14 +139,16 @@ class SC_Node:
             for prod, capacity in enumerate(supply_capacity):
                 if capacity > 0:
                     self.supply_actions[prod] = SC_Action('SUPPLY', capacity=capacity, costs=supply_cost[prod])
-                    self.num_actions += 1
+                    self.num_supply_actions += 1
                 else:
                     self.supply_actions[prod] = None
+            # Max_ship é o valor usado na normalização do estado.
+            # No caso dos fornecedores ele depende do produto e é a capacidade de fornecimento.
             self.max_ship = supply_capacity.copy()
         else:
-            # Indica o máximo de material que pode chegar por transporte em cada período
-            # (será a soma das capacidades das origens)
-            # Ver issue #1 para maiores detalhes.
+            # Max_ship é o valor usado na normalização do estado.
+            # No caso dos outros nós será a própria capacidade transporte. Ela não depende do produo
+            # mas vou replicar o valor por produto apenas para simplificar o código da normalização do estado
             self.max_ship = [0]*self.num_products
 
         # A capacidade de processamento é a total e não por produto
@@ -187,7 +196,7 @@ class SC_Node:
         for prod, stock_capacity in enumerate(self.stock_capacities):
             if stock_capacity > 0:
                 self.ship_actions[prod] = SC_Action('SHIP', capacity=stock_capacity, costs=ship_costs[prod])
-                self.num_actions += 1
+                self.num_ship_actions += len(self.dests)
             else:
                 self.ship_actions[prod] = None
 
@@ -266,15 +275,15 @@ class SC_Node:
                     exceeded_processing_capacity = 0
 
                     # O material a ser considerado para envio é todo o estoque atual do produto em questão
-                    material_to_ship = self.stock[prod]
+                    available_material = self.stock[prod]
                     
                     # Se tem algum material a ser enviado
-                    if material_to_ship > 0:
+                    if available_material > 0:
                     
                         # A aplicação da ação retorna a quantidade de material a ser enviado para cada destino 
                         # e o custo de cada da operação.
                         # Obs: as ações se referem à porcentagem da quantidade de material atualmente em estoque.
-                        amounts, costs = ship_action.apply(action_values[next_action_idx:next_action_idx+len(self.dests)], maximum=material_to_ship)
+                        amounts, _ = ship_action.apply(action_values[next_action_idx:next_action_idx+len(self.dests)], maximum=available_material)
                         
                         # As quantidades a serem enviadas geralmente são as mesmas que saíram do estoque
                         # isso pode ser diferente para as fábricas, porque deve-se aplicar as razões de processamento.
@@ -324,9 +333,9 @@ class SC_Node:
                         # (que se refere à matéria-prima) e o custo de transporte será referente ao
                         # produto final que foi enviado.
                         if self.processing_capacity > 0:                        
-                            total_cost += total_leaving_stock * self.processing_cost
+                            total_cost += total_leaving_stock * self.processing_cost[prod]
                             if self.build_info:
-                                self.est_costs['processing'][prod] = total_leaving_stock * self.processing_cost
+                                self.est_costs['processing'][prod] = total_leaving_stock * self.processing_cost[prod]
                                 self.est_units['processing'][prod] = total_leaving_stock                        
                         
                         # Trata o envio dos materiais
@@ -338,10 +347,11 @@ class SC_Node:
 
                         # Contabiliza os custos e estatísticas de transporte
                         # Os custos são atualizados porque excessos podem ter sido descartados
-                        total_cost += ship_action.calculate_costs(amounts_to_ship)
+                        ship_costs = sum(ship_action.calculate_costs(amounts_to_ship))
+                        total_cost += ship_costs
                         if self.build_info:
-                            self.est_costs['ship'][prod] = sum(costs)
-                            self.est_units['ship'][prod] = sum(amounts)
+                            self.est_costs['ship'][prod] = ship_costs
+                            self.est_units['ship'][prod] = sum(amounts_to_ship)
             
                     # Agora que o processamento e transporte foi tratado, vamos contabiliza os possíveis
                     # custos de penalização por ter excedido as capacidades de processamento e transporte
@@ -374,7 +384,7 @@ class SC_Node:
         for prod in range(self.num_products):
             total_cost += self.stock[prod]*self.stock_cost[prod]
             if self.build_info:
-                self.est_costs['stock'] = self.stock[prod]*self.stock_cost
+                self.est_costs['stock'] = self.stock[prod]*self.stock_cost[prod]
                 self.est_units['stock'] = self.stock[prod]
 
         return total_cost
@@ -400,7 +410,7 @@ class SC_Node:
             self.est_units = {'stock':[], 'stock_pen':[], 'supply':[], 'process':[], 'process_pen':[], 'ship':[], 'ship_pen':[], 'unmet_dem':[]}
 
     def num_expected_actions(self):
-        return self.num_actions
+        return self.num_supply_actions+self.num_ship_actions
 
     def render(self):
         print(self.__str__(), end='')
@@ -416,7 +426,7 @@ class SC_Node:
         obs = [current_stock[i]/self.stock_capacities[i] for i in range(len(current_stock))]
 
         # Depois as informações de transporte são agrupadas por produto
-        for shipments in self.shipments_by_prod:
+        for prod, shipments in enumerate(self.shipments_by_prod):
             # Se não tem nenhum carregamento pra chegar, cria os carregamentos vazios
             if not shipments:
                 obs += [0]*(shipments_range[1]-shipments_range[0]+1)
@@ -432,7 +442,7 @@ class SC_Node:
                         obs[-1] += shipments[ship_idx][1]
                         ship_idx += 1
                     # normaliza a quantidade de material em transporte
-                    obs[-1] /= self.max_ship
+                    obs[-1] /= self.max_ship[prod]
                 
                 # Agora vamos tratar o último período do range
                 time_step = shipments_range[1]
@@ -441,7 +451,7 @@ class SC_Node:
                     obs[-1] += shipments[ship_idx][1]
                     ship_idx += 1
                 # normaliza a quantidade de material em transporte
-                obs[-1] /= self.max_ship*(self.max_leadtime-(shipments_range[1]-shipments_range[0]))
+                obs[-1] /= self.max_ship[prod]*(self.max_leadtime-(shipments_range[1]-shipments_range[0]))
 
         return obs
 
@@ -550,7 +560,7 @@ class SupplyChainEnv(gym.Env):
             # a capacidade de transporte é compartilhada)
             self.count_leadtimes_per_timestep = 0
             for node in self.nodes:            
-                if node.supply_actions:
+                if node.num_supply_actions > 0:
                     self.count_leadtimes_per_timestep += self.num_products
                 self.count_leadtimes_per_timestep += len(node.dests) if node.dests else 0
 
@@ -642,7 +652,7 @@ class SupplyChainEnv(gym.Env):
         for node in self.nodes:
             actions_to_apply   = action[next_action_idx:next_action_idx+node.num_expected_actions()]
             if self.stochastic_leadtimes:
-                num_leadtime_values = len(node.supply_actions) + len(node.ship_actions)//self.num_products
+                num_leadtime_values = node.num_supply_actions + node.num_ship_actions//self.num_products
                 leadtimes_to_apply = self.leadtimes[self.time_step-1, next_action_idx:next_action_idx+num_leadtime_values]
             else:
                 leadtimes_to_apply = node.num_expected_actions()*[self.avg_leadtime]
@@ -754,20 +764,26 @@ if __name__ == '__main__':
     nodes_info = {}
     nodes_info['Supplier 1'] = {'initial_stock':10, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'supply_capacity':supply_capacity, 'supply_cost':supply_cost,
-                                'destinations':['Factory  1', 'Factory  2'], 'dest_costs':[dest_cost]*2, 'ship_capacity':[ship_capacity]*2}
+                                'destinations':['Factory  1', 'Factory  2'], 'dest_costs':[[dest_cost]*2]*num_products, 
+                                'ship_capacity':[ship_capacity]*2}
     nodes_info['Supplier 2'] = {'initial_stock':0, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'supply_capacity':supply_capacity, 'supply_cost':supply_cost,
-                                'destinations':['Factory  1', 'Factory  2'], 'dest_costs':[dest_cost]*2, 'ship_capacity':[ship_capacity]*2}
+                                'destinations':['Factory  1', 'Factory  2'], 'dest_costs':[[dest_cost]*2]*num_products, 
+                                'ship_capacity':[ship_capacity]*2}
     nodes_info['Factory  1'] = {'initial_stock':0, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'processing_capacity':processing_capacity, 'processing_cost':processing_cost,
-                                'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[dest_cost]*2, 'ship_capacity':[ship_capacity]*2}
+                                'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[[dest_cost]*2]*num_products, 
+                                'ship_capacity':[ship_capacity]*2}
     nodes_info['Factory  2'] = {'initial_stock':0, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'processing_capacity':processing_capacity, 'processing_cost':processing_cost,
-                                'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[dest_cost]*2, 'ship_capacity':[ship_capacity]*2}
+                                'destinations':['Wholesal 1', 'Wholesal 2'], 'dest_costs':[[dest_cost]*2]*num_products, 
+                                'ship_capacity':[ship_capacity]*2}
     nodes_info['Wholesal 1'] = {'initial_stock':10, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
-                                'destinations':['Retailer 1', 'Retailer 2'], 'dest_costs':[dest_cost]*2, 'ship_capacity':[ship_capacity]*2}
+                                'destinations':['Retailer 1', 'Retailer 2'], 'dest_costs':[[dest_cost]*2]*num_products, 
+                                'ship_capacity':[ship_capacity]*2}
     nodes_info['Wholesal 2'] = {'initial_stock':15, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
-                                'destinations':['Retailer 1', 'Retailer 2'], 'dest_costs':[dest_cost]*2, 'ship_capacity':[ship_capacity]*2}
+                                'destinations':['Retailer 1', 'Retailer 2'], 'dest_costs':[[dest_cost]*2]*num_products, 
+                                'ship_capacity':[ship_capacity]*2}
     nodes_info['Retailer 1'] = {'initial_stock':10, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                 'last_level':True}
     nodes_info['Retailer 2'] = {'initial_stock':20, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
