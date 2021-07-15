@@ -6,8 +6,10 @@ from gym import spaces
 
 from .demands_generator import generate_demand
 
-# TODO: Teste com 20 timesteps deu diferença a partir do décimo
+# TODO: Validar build_info
+# TODO: breakpoint nos descartes de material de processamento e de transporte
 # TODO: normalização de estado não bateu certinho (capacidade de transporte?).
+
 # TODO: evitar envio de material com quantidade zero.
 # TODO: melhorar desempenho: usar sempre numpy array ao invés de listas.
 
@@ -233,8 +235,8 @@ class SC_Node:
                 # Calculando penalização
                 total_cost += self.exceeded_stock_capacity_cost*(self.stock[prod] - self.stock_capacities[prod])
                 if self.build_info:
-                    self.est_costs['stock_penalty'][prod] = self.exceeded_stock_capacity_cost*(self.stock[prod] - self.stock_capacities[prod])
-                    self.est_units['stock_penalty'][prod] = self.stock[prod] - self.stock_capacities[prod]
+                    self.est_costs['stock_pen'][prod] = self.exceeded_stock_capacity_cost*(self.stock[prod] - self.stock_capacities[prod])
+                    self.est_units['stock_pen'][prod] = self.stock[prod] - self.stock_capacities[prod]
                 # Descartando material excedente
                 self.stock[prod] = self.stock_capacities[prod]
                 
@@ -335,8 +337,8 @@ class SC_Node:
                         if self.processing_capacity > 0:                        
                             total_cost += total_leaving_stock * self.processing_cost[prod]
                             if self.build_info:
-                                self.est_costs['processing'][prod] = total_leaving_stock * self.processing_cost[prod]
-                                self.est_units['processing'][prod] = total_leaving_stock                        
+                                self.est_costs['process'][prod] = total_leaving_stock * self.processing_cost[prod]
+                                self.est_units['process'][prod] = total_leaving_stock                        
                         
                         # Trata o envio dos materiais
                         for i in range(len(self.dests)):
@@ -358,13 +360,13 @@ class SC_Node:
                     
                     total_cost += self.exceeded_process_capacity_cost * exceeded_processing_capacity
                     if self.build_info:
-                        self.est_costs['process_penalty'][prod] = self.exceeded_process_capacity_cost*exceeded_processing_capacity
-                        self.est_units['process_penalty'][prod] = exceeded_processing_capacity
+                        self.est_costs['process_pen'][prod] = self.exceeded_process_capacity_cost*exceeded_processing_capacity
+                        self.est_units['process_pen'][prod] = exceeded_processing_capacity
                     
                     total_cost += self.exceeded_ship_capacity_cost * exceeded_ship_capacity
                     if self.build_info:
-                        self.est_costs['process_penalty'][prod] = self.exceeded_ship_capacity_cost*exceeded_ship_capacity
-                        self.est_units['process_penalty'][prod] = exceeded_ship_capacity
+                        self.est_costs['ship_pen'][prod] = self.exceeded_ship_capacity_cost*exceeded_ship_capacity
+                        self.est_units['ship_pen'][prod] = exceeded_ship_capacity
                     
                     # Volta a posição dos lead times de transporte porque eles são os mesmos independente do produto.
                     next_leadtime_idx = next_prod_leadtime_idx
@@ -377,15 +379,15 @@ class SC_Node:
                 # Contabiliza os custos e estatísticas
                 total_cost += self.unmet_demand_cost * (customer_demand[prod] - max_possible)
                 if self.build_info:
-                    self.est_costs['unmet_dem'] = self.unmet_demand_cost * (customer_demand[prod] - max_possible)
-                    self.est_units['unmet_dem'] = customer_demand[prod] - max_possible
+                    self.est_costs['unmet_dem'][prod] = self.unmet_demand_cost * (customer_demand[prod] - max_possible)
+                    self.est_units['unmet_dem'][prod] = customer_demand[prod] - max_possible
 
         # Contabiliza os custos e estatísticas do material que ficou no estoque de cada produto
         for prod in range(self.num_products):
             total_cost += self.stock[prod]*self.stock_cost[prod]
             if self.build_info:
-                self.est_costs['stock'] = self.stock[prod]*self.stock_cost[prod]
-                self.est_units['stock'] = self.stock[prod]
+                self.est_costs['stock'][prod] = self.stock[prod]*self.stock_cost[prod]
+                self.est_units['stock'][prod] = self.stock[prod]
 
         return total_cost
 
@@ -627,12 +629,17 @@ class SupplyChainEnv(gym.Env):
         return self.current_state
     
     def _initial_est_episode(self):
-        return {'rewards':0, 
-                'costs':{
-                    'stock':[], 'stock_pen':[], 'supply':[], 'process':[], 'process_pen':[], 'ship':[], 'ship_pen':[], 'unmet_dem':[]},
-                'units':{
-                    'stock':[], 'stock_pen':[], 'supply':[], 'process':[], 'process_pen':[], 'ship':[], 'ship_pen':[], 'unmet_dem':[]}
-                }
+        costs = {'stock':[], 'stock_pen':[], 'supply':[], 'process':[], 'process_pen':[], 'ship':[], 'ship_pen':[], 'unmet_dem':[]}
+        units = {'stock':[], 'stock_pen':[], 'supply':[], 'process':[], 'process_pen':[], 'ship':[], 'ship_pen':[], 'unmet_dem':[]}
+        
+        # Zerando custos e unidades
+        if self.build_info:
+            for key in costs:
+                costs[key] = [0]*self.num_products
+            for key in units:
+                units[key] = [0]*self.num_products
+
+        return {'rewards':0, 'costs':costs, 'units':units}
         
     def _denormalize_action(self, action):
         return (action+1)/2
@@ -688,9 +695,11 @@ class SupplyChainEnv(gym.Env):
         units = self.est_episode['units']
         for node in self.nodes:
             for key,value in node.est_costs.items():
-                costs[key] += value
+                for prod in range(self.num_products):
+                    costs[key][prod] += value[prod]
             for key,value in node.est_units.items():
-                units[key] += value
+                for prod in range(self.num_products):
+                    units[key][prod] += value[prod]
 
     def _build_observation(self):
         """ Uma observação será formada:
