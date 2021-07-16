@@ -6,13 +6,8 @@ from gym import spaces
 
 from .demands_generator import generate_demand
 
-# TODO: continua checando saída do código main do sazonal (timestep 1 dá diferença)
-# TODO: passar ship_capacity pra 1700 pra ver se bate o estado
 # TODO: definir valores padrões ao criar o ambiente (ideal é que mantivesse o comportamento anterior)
 # TODO: testar com multiproduto
-# TODO: atualizar casos de teste
-
-
 
 # TODO: melhorar desempenho: usar sempre numpy array ao invés de listas.
 
@@ -130,8 +125,8 @@ class SC_Node:
         self.build_info = build_info
         self.label = label
         self.num_products = num_products
-        self.supply_actions = [[]*self.num_products]
-        self.ship_actions = [[]*self.num_products]
+        self.supply_actions = [None]*self.num_products
+        self.ship_actions = [None]*self.num_products
         self.num_supply_actions = 0
         self.num_ship_actions = 0
         
@@ -177,7 +172,7 @@ class SC_Node:
         self.processing_cost = self._treat_int_or_list_param(processing_cost)
         
         self.dests = None
-        self.shipments_by_prod = [[]*self.num_products]
+        self.shipments_by_prod = [None]*self.num_products
         self.max_leadtime = max_leadtime
 
     def _treat_int_or_list_param(self, param, default_value=0):
@@ -399,7 +394,7 @@ class SC_Node:
 
     def reset(self):
         self.stock = self.initial_stock
-        self.shipments_by_prod = [[]*self.num_products]
+        self.shipments_by_prod = [None]*self.num_products
         if self.initial_supply:
             for prod in range(self.num_products):
                 for i in range(len(self.initial_supply[prod])):                
@@ -468,7 +463,8 @@ class SC_Node:
         for shipments in self.shipments_by_prod:
             desc += f'['
             for i in range(len(shipments)):
-                desc += f'{np.round(shipments[i][0])} {np.round(shipments[i][1],1)}, '
+                if shipments:
+                    desc += f'{np.round(shipments[i][0])} {np.round(shipments[i][1],1)}, '
             desc += f']'
         desc += f') [{np.round(self.stock,1)}] '
         return desc
