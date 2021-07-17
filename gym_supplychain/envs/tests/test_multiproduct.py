@@ -58,23 +58,23 @@ class TestMultiproduct():
         assert np.all(env.customer_demands.flatten() == [4, 5, 0, 3, 3, 3, 1, 3, 5, 2, 4, 0])
 
         for node in env.nodes:
-            assert node.shipments_by_prod == [None, None]
+            assert node.shipments_by_prod == [[], []]
         
         # ação para fornecer o máximo de material possível
-        supply_action = np.array([1,1, 0,0,0,0,0])
+        supply_action = np.array([1,1,0,0,0,0,0,0])
         supply_action = 2*supply_action-1
         
         env.step(supply_action) # timestep=1
 
-        assert env.nodes[0].shipments_by_prod[0] == [(3,50)]
+        assert env.nodes[0].shipments_by_prod == [[(3,50.0)],[(3,50.0)]]
         for node in env.nodes[1:]:
-            assert len(node.shipments_by_prod[0]) == 0
+            assert node.shipments_by_prod == [[], []]
         for node in env.nodes[:-1]:
-            assert node.stock == 10
-        assert env.nodes[-1].stock == 10 - env.customer_demands[0]
+            assert np.allclose(node.stock, [10.0,20.0])
+        assert np.allclose(env.nodes[-1].stock, [10 - env.customer_demands[0,0,0], 20 - env.customer_demands[0,0,1]])
 
         # ação para fornecer o máximo de material possível e enviar o máximo de material possível também
-        send_all_action = np.array(6*[1])
+        send_all_action = np.array(8*[1])
         supply_action = 2*send_all_action-1
         
         env.step(send_all_action) # timestep=2

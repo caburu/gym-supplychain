@@ -172,7 +172,7 @@ class SC_Node:
         self.processing_cost = self._treat_int_or_list_param(processing_cost)
         
         self.dests = None
-        self.shipments_by_prod = [None]*self.num_products
+        self.shipments_by_prod = [[] for i in range(self.num_products)]
         self.max_leadtime = max_leadtime
 
     def _treat_int_or_list_param(self, param, default_value=0):
@@ -394,7 +394,7 @@ class SC_Node:
 
     def reset(self):
         self.stock = self.initial_stock
-        self.shipments_by_prod = [None]*self.num_products
+        self.shipments_by_prod = [[] for i in range(self.num_products)]
         if self.initial_supply:
             for prod in range(self.num_products):
                 for i in range(len(self.initial_supply[prod])):                
@@ -463,8 +463,7 @@ class SC_Node:
         for shipments in self.shipments_by_prod:
             desc += f'['
             for i in range(len(shipments)):
-                if shipments:
-                    desc += f'{np.round(shipments[i][0])} {np.round(shipments[i][1],1)}, '
+                desc += f'{np.round(shipments[i][0])} {np.round(shipments[i][1],1)}, '
             desc += f']'
         desc += f') [{np.round(self.stock,1)}] '
         return desc
