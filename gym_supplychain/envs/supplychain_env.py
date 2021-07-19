@@ -186,7 +186,7 @@ class SC_Node:
         elif type(param) is int:
             param = [param]*self.num_products
         else:
-            raise ValueError('Invalid param: shoube an int or a list with one value per product')
+            raise ValueError(f"Invalid param: '{param}' should be an int or a list with one value per product")
         
         return param
 
@@ -240,21 +240,22 @@ class SC_Node:
                 
         # Se o nó é um fornecedor, executa as ações de fornecimento
         next_action_idx = 0
-        for prod, supply_action in enumerate(self.supply_actions):
-            # Se tem ação de fornecimento para o produto
-            if supply_action:
-                # A aplicação da ação retorna a quantidade de material a ser fornecido e o custo da operação
-                amount, cost = supply_action.apply(action_values[next_action_idx])
-                next_action_idx += 1
-                # adiciona o material para ser fornecido
-                if amount > 0:
-                    self._ship_material(time_step+leadtimes[next_leadtime_idx], prod, amount)
-                    next_leadtime_idx += 1
-                # Contabiliza os custos e estatísticas
-                total_cost += cost
-                if self.build_info:
-                    self.est_costs['supply'][prod] = cost
-                    self.est_units['supply'][prod] = amount
+        if self.num_supply_actions > 0:
+            for prod, supply_action in enumerate(self.supply_actions):
+                # Se tem ação de fornecimento para o produto
+                if supply_action:
+                    # A aplicação da ação retorna a quantidade de material a ser fornecido e o custo da operação
+                    amount, cost = supply_action.apply(action_values[next_action_idx])
+                    next_action_idx += 1
+                    # adiciona o material para ser fornecido
+                    if amount > 0:
+                        self._ship_material(time_step+leadtimes[next_leadtime_idx], prod, amount)
+                        next_leadtime_idx += 1
+                    # Contabiliza os custos e estatísticas
+                    total_cost += cost
+                    if self.build_info:
+                        self.est_costs['supply'][prod] = cost
+                        self.est_units['supply'][prod] = amount
 
         # Se não é um revendedor
         if not self.last_level:
@@ -496,10 +497,22 @@ class SupplyChainEnv(gym.Env):
                 node_info = nodes_info[node_name]
                 
                 processing_cost = node_info.get('processing_cost', 0)
-                if processing_cost > 0:
-                    node_processing_ratio = processing_ratio
-                else:
+                # if type(processing_cost) is int:
+                #     if processing_cost == 0:
+                #         node_processing_ratio = 0
+                #     else:
+                #         node_processing_ratio = node_processing_ratio
+                # else:
+                #     if all(p == 0 for p in processing_cost):
+                #         node_processing_ratio = 0
+                #     else:
+                #         node_processing_ratio = processing_ratio
+                
+                if ((type(processing_cost) is int and processing_cost == 0) or 
+                    (type(processing_cost) is list and sum(processing_cost) == 0)):
                     node_processing_ratio = 0
+                else:
+                    node_processing_ratio = processing_ratio
                     
                 node = SC_Node(node_name,
                                num_products=num_products,

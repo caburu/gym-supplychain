@@ -84,7 +84,7 @@ class TestSupplyChainEnv:
 
         # ação para fornecer o máximo de material possível e enviar o máximo de material possível também
         send_all_action = np.array(6*[1])
-        supply_action = 2*send_all_action-1
+        send_all_action = 2*send_all_action-1
         
         env.step(send_all_action) # timestep=2
 
