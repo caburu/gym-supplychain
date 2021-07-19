@@ -210,6 +210,7 @@ class SC_Node:
         next_leadtime_idx = 0
         
         # Zerando custos e unidades anteriores
+        # TODO: #20 No método `act` incializar custos copiando estrutura zerada
         if self.build_info:
             for key in self.est_costs:
                 self.est_costs[key] = [0]*self.num_products
@@ -390,7 +391,8 @@ class SC_Node:
 
         return total_cost
 
-    def _ship_material(self, time, product, amount):        
+    def _ship_material(self, time, product, amount):
+        # TODO: #21 Melhorar desempenho do material em transporte      
         heapq.heappush(self.shipments_by_prod[product], (time, amount))
 
     def reset(self):
