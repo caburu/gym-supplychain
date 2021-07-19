@@ -1,9 +1,7 @@
 import os
 import numpy as np
 
-# TODO: Testar com mais de um produto
 # TODO: Testar dinâmica da cadeia sazonal (com leadtime)
-# TODO: Testar caso de descarte por excesso de estoque
 
 from ..supplychain_2perstage_env import SupplyChain2perStageEnv, SupplyChain2perStageSeasonalEnv
 from .utils import check_rewards, check_build_info
