@@ -668,12 +668,14 @@ class SupplyChainEnv(gym.Env):
         total_cost = 0
 
         next_action_idx = 0
+        next_leadt_idx  = 0
         next_customer = 0
         for node in self.nodes:
             actions_to_apply   = action[next_action_idx:next_action_idx+node.num_expected_actions()]
             if self.stochastic_leadtimes:
                 num_leadtime_values = node.num_supply_actions + node.num_ship_actions//self.num_products
-                leadtimes_to_apply = self.leadtimes[self.time_step-1, next_action_idx:next_action_idx+num_leadtime_values]
+                leadtimes_to_apply = self.leadtimes[self.time_step-1, next_leadt_idx:next_leadt_idx+num_leadtime_values]
+                next_leadt_idx += num_leadtime_values
             else:
                 leadtimes_to_apply = node.num_expected_actions()*[self.avg_leadtime]
             

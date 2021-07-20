@@ -181,3 +181,34 @@ class TestMultiproduct2PerStage():
         while not done:
             action = env.action_space.sample()
             _, _, done, _ = env.step(action)
+    
+    def test_scenario_mp_N20(self):
+        env = SupplyChainMultiProduct(demand_range=(0, 400),
+                                      avg_demand_range=[100, 300],
+                                      demand_std=20,
+                                      demand_sen_peaks=4,
+                                      demand_perturb_norm=True,
+                                      stochastic_leadtimes=True,
+                                      avg_leadtime=2,
+                                      max_leadtime=4)
+        env.reset()
+        done = False
+        while not done:
+            action = env.action_space.sample()
+            _, _, done, _ = env.step(action)
+
+    def test_scenario_mp_rN50(self):
+        env = SupplyChainMultiProduct(demand_range=(0, 400),
+                                      avg_demand_range=[100, 300],
+                                      demand_std=50,
+                                      demand_perturb_norm=True,
+                                      stochastic_leadtimes=True,
+                                      avg_leadtime=2,
+                                      max_leadtime=4)
+        env.reset()
+        done = False
+        while not done:
+            action = env.action_space.sample()
+            _, _, done, _ = env.step(action)
+
+      

@@ -21,28 +21,31 @@ def generate_demand(rand_generator, dem_shape, horizon, minv, maxv, std=None,
     if sen_peaks is None:
         # Se não passou desvio padrão é porque é distribuição uniforme
         if std is None:
-            return uniform_data(rand_generator, horizon, dem_shape, minv, maxv)
+            return uniform_data(rand_generator, dem_shape, minv, maxv)
         # Se passou desvio padrão é distribuição normal
         else:
-            return normal_data(rand_generator, horizon, dem_shape, minv, maxv, std)
+            return normal_data(rand_generator, dem_shape, minv, maxv, std)
     # Se passou número de picos, é uma função senoidal
     else: 
         std = 0 if std is None else std
         return senoidal_data(rand_generator, horizon, dem_shape, minv, maxv, std, sen_peaks, minavg, maxavg, perturb_norm)
 
-def uniform_data(rand_generator, horizon, dem_shape, minv, maxv):
+def uniform_data(rand_generator, dem_shape, minv, maxv):
     """ Gera a quantidade de demandas solicitadas a partir de uma distribuição uniforme
         dentro da faixa passada [minv,maxv] """
     return rand_generator.randint(low=minv, high=maxv+1, size=dem_shape)
 
-def normal_data(rand_generator, horizon, dem_shape, minv, maxv, std):
+def normal_data(rand_generator, dem_shape, minv, maxv, std):
     """ Gera a quantidade de demandas solicitadas a partir do valor média da faixa passada
         com um perturbação dada pela distribuição normal com média zero e desvio padrão """
     data = rand_generator.normal((maxv+minv)/2, std, size=dem_shape)
-    data = np.round(data)
-    for period in range(dem_shape[0]):
-        for r in range(dem_shape[1]):
-            data[period, r] = cut_limit_data(int(round(data[period, r])), minv, maxv)
+    
+    # garante os valores mínimo e máximo possíveis para a demanda
+    np.clip(data, minv, maxv, out=data)
+    
+    # passa os valores para inteiro
+    data = np.rint(data).astype(int)
+
     return data
 
 def senoidal_data(rand_generator, horizon=360, dem_shape=(361,2), minv=0, maxv=400, std=5, num_peaks=4,
@@ -75,17 +78,15 @@ def senoidal_data(rand_generator, horizon=360, dem_shape=(361,2), minv=0, maxv=4
     data = np.zeros(dem_shape)
     for period in range(dem_shape[0]):
         for d in range(dem_shape[1]):
+            # gera o valor de demanda
             dem = minavg + half_curve * (1 + np.sin(sin_arg*period)) + perturb[period,d]
-            data[period,d] =  cut_limit_data(int(np.round(dem)), minv, maxv)
+            # garante os valores mínimo e máximo possíveis para a demanda
+            data[period,d] = np.clip(dem, minv, maxv)
+    
+    # passa os valores para inteiro
+    data = np.rint(data).astype(int)
     
     return data
-
-def cut_limit_data(value, minv, maxv):
-    if value > maxv:
-        return maxv
-    elif value < minv:
-        return minv
-    return value
 
 if __name__ == '__main__':
     from matplotlib import pyplot as ppt
