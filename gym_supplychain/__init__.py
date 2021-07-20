@@ -24,3 +24,8 @@ register(
     id='sc-2perstage-seasonal-v0',
     entry_point='gym_supplychain.envs:SupplyChain2perStageSeasonalEnv',
 )
+
+register(
+    id='sc-2perstage-multiproduct-v0',
+    entry_point='gym_supplychain.envs:SupplyChainMultiProduct',
+)

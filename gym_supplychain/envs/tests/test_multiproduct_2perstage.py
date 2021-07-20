@@ -1,6 +1,7 @@
 import numpy as np
 
 from ..supplychain_env import SupplyChainEnv
+from ..supplychain_multiproduct_env import SupplyChainMultiProduct
 
 class TestMultiproduct2PerStage():
 
@@ -172,3 +173,11 @@ class TestMultiproduct2PerStage():
         print(expected_obs)
 
         assert np.allclose(obs, expected_obs)
+  
+    def test_SupplyChainMultiProduct(self):
+        env = SupplyChainMultiProduct()
+        env.reset()
+        done = False
+        while not done:
+            action = env.action_space.sample()
+            _, _, done, _ = env.step(action)
