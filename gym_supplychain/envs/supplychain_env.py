@@ -10,6 +10,7 @@ from .demands_generator import generate_demand
 # TODO: testar com multiproduto
 
 # TODO: melhorar desempenho: usar sempre numpy array ao invés de listas.
+# TODO: melhorar desempenho: usar Counter para atualiza o dicionário de estatísticas
 
 
 class SC_Action:
@@ -757,6 +758,7 @@ class SupplyChainEnv(gym.Env):
 
     def seed(self, seed=None):
         self.rand_generator = np.random.RandomState(seed)
+        self.action_space.seed(0)
 
 if __name__ == '__main__':
     num_products     = 1
