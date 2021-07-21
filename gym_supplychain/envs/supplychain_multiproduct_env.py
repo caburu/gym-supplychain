@@ -81,7 +81,7 @@ class SupplyChainMultiProduct(SupplyChainEnv):
         
         if not initial_stocks:
             if num_products == 2:
-                initial_stocks=[[800,600]]*8
+                initial_stocks=[[800]*2]*8
             elif num_products == 3:
                 initial_stocks=[[800,600,700]]*8
             else:
@@ -100,7 +100,7 @@ class SupplyChainMultiProduct(SupplyChainEnv):
         if not ship_capacity: ship_capacity=[500*num_products,500*num_products]
         if not initial_shipments: 
             initial_shipments=[[[600]*avg_leadtime]*num_products,[[840]*avg_leadtime]*num_products]+[[[240]*avg_leadtime]*num_products]*4
-        if not processing_capacities: processing_capacities=[800*num_products,1000*num_products]
+        if not processing_capacities: processing_capacities=[840*num_products,960*num_products]
         if not processing_costs: processing_costs=[[12]*num_products,[10]*num_products]
 
         nodes_info = self._create_chain(initial_stocks, stock_capacities, stock_costs, initial_supply,
