@@ -77,15 +77,7 @@ class SupplyChainMultiProduct(SupplyChainEnv):
                  max_leadtime=2,
                  total_time_steps=360, 
                  seed=None,
-                 build_info=False):
-        
-        if not initial_stocks:
-            if num_products == 2:
-                initial_stocks=[[800]*2]*8
-            elif num_products == 3:
-                initial_stocks=[[800,600,700]]*8
-            else:
-                initial_stocks=[[800]*num_products]*8
+                 build_info=False):                
         
         if not stock_capacities:
             stock_capacities=[[1600]*num_products,[1800]*num_products,
@@ -93,6 +85,7 @@ class SupplyChainMultiProduct(SupplyChainEnv):
                               [1600]*num_products,[1800]*num_products,
                               [1600]*num_products,[1800]*num_products]
         
+        if not initial_stocks: initial_stocks=[[800]*num_products]*8
         if not initial_supply: initial_supply=[[[600]*avg_leadtime]*num_products,[[840]*avg_leadtime]*num_products]        
         if not supply_capacities: supply_capacities=[[600]*num_products,[840]*num_products]
         if not supply_costs: supply_costs=[[6]*num_products,[4]*num_products]
