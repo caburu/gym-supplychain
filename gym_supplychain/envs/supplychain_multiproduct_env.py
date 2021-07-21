@@ -58,9 +58,9 @@ class SupplyChainMultiProduct(SupplyChainEnv):
                  supply_capacities=None,
                  supply_costs=None,
                  dest_cost=None,
-                 ship_capacity=[2000,2000],
+                 ship_capacity=None,
                  initial_shipments=None,
-                 processing_capacities=[1600,2000], 
+                 processing_capacities=None,
                  processing_costs=None,
                  processing_ratio=3,                 
                  unmet_demand_cost=216, 
@@ -97,8 +97,10 @@ class SupplyChainMultiProduct(SupplyChainEnv):
         if not supply_capacities: supply_capacities=[[600]*num_products,[840]*num_products]
         if not supply_costs: supply_costs=[[6]*num_products,[4]*num_products]
         if not dest_cost: dest_cost=[[2]*2]*num_products
+        if not ship_capacity: ship_capacity=[500*num_products,500*num_products]
         if not initial_shipments: 
             initial_shipments=[[[600]*avg_leadtime]*num_products,[[840]*avg_leadtime]*num_products]+[[[240]*avg_leadtime]*num_products]*4
+        if not processing_capacities: processing_capacities=[800*num_products,1000*num_products]
         if not processing_costs: processing_costs=[[12]*num_products,[10]*num_products]
 
         nodes_info = self._create_chain(initial_stocks, stock_capacities, stock_costs, initial_supply,

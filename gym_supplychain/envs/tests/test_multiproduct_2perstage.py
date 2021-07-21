@@ -189,7 +189,7 @@ class TestMultiproduct2PerStage():
   
     def test_SupplyChainMultiProduct(self):
         env = SupplyChainMultiProduct()
-        self._run_episode(env, expected_rewards=-34754574.48967183)
+        self._run_episode(env, expected_rewards=-34763673.31889166)
         
     
     def test_scenario_mp_N20(self):
@@ -201,7 +201,7 @@ class TestMultiproduct2PerStage():
                                       stochastic_leadtimes=True,
                                       avg_leadtime=2,
                                       max_leadtime=4)
-        self._run_episode(env, expected_rewards=-33995360.63953857)
+        self._run_episode(env, expected_rewards=-34109435.27868383)
 
     def test_scenario_mp_rN50(self):
         env = SupplyChainMultiProduct(demand_range=(0, 400),
@@ -211,12 +211,12 @@ class TestMultiproduct2PerStage():
                                       stochastic_leadtimes=True,
                                       avg_leadtime=2,
                                       max_leadtime=4)
-        self._run_episode(env, expected_rewards=-33551041.591334336)
+        self._run_episode(env, expected_rewards=-33659781.95892679)
 
       
     def test_SupplyChainMultiProduct_3products(self):
         env = SupplyChainMultiProduct(num_products=3)
-        self._run_episode(env, expected_rewards=-54056520.05437983)
+        self._run_episode(env, expected_rewards=-52725003.87672908)
 
     def test_scenario_m3p_N20(self):
         env = SupplyChainMultiProduct(num_products=3,
@@ -228,7 +228,7 @@ class TestMultiproduct2PerStage():
                                       stochastic_leadtimes=True,
                                       avg_leadtime=2,
                                       max_leadtime=4)
-        self._run_episode(env, expected_rewards=-53296463.58439423)
+        self._run_episode(env, expected_rewards=-51794080.16991027)
 
     def test_scenario_m3p_rN50(self):
         env = SupplyChainMultiProduct(num_products=3,
@@ -239,8 +239,8 @@ class TestMultiproduct2PerStage():
                                       stochastic_leadtimes=True,
                                       avg_leadtime=2,
                                       max_leadtime=4)
-        self._run_episode(env, expected_rewards=-52830295.83597374)
+        self._run_episode(env, expected_rewards=-51386446.76574716)
     
     def test_SupplyChainMultiProduct_10products(self):
         env = SupplyChainMultiProduct(num_products=10)
-        self._run_episode(env, expected_rewards=-479369996.1741881)
+        self._run_episode(env, expected_rewards=-173733402.64513558)
