@@ -64,6 +64,19 @@ class TestMultiproduct2PerStage():
         
         return env
     
+    def _run_episode(self, env, seed=0, expected_rewards=None):
+        env.seed(seed)
+        env.reset()
+        done = False
+        rewards = 0
+        while not done:
+            action = env.action_space.sample()
+            _, reward, done, _ = env.step(action)
+            rewards += reward
+        
+        if expected_rewards:
+            assert np.allclose(expected_rewards, rewards)
+    
     def test_basic_dynamics(self):
         env = self._create_env(build_info=True)
 
@@ -176,11 +189,8 @@ class TestMultiproduct2PerStage():
   
     def test_SupplyChainMultiProduct(self):
         env = SupplyChainMultiProduct()
-        env.reset()
-        done = False
-        while not done:
-            action = env.action_space.sample()
-            _, _, done, _ = env.step(action)
+        self._run_episode(env, expected_rewards=-34754574.48967183)
+        
     
     def test_scenario_mp_N20(self):
         env = SupplyChainMultiProduct(demand_range=(0, 400),
@@ -191,11 +201,7 @@ class TestMultiproduct2PerStage():
                                       stochastic_leadtimes=True,
                                       avg_leadtime=2,
                                       max_leadtime=4)
-        env.reset()
-        done = False
-        while not done:
-            action = env.action_space.sample()
-            _, _, done, _ = env.step(action)
+        self._run_episode(env, expected_rewards=-33995360.63953857)
 
     def test_scenario_mp_rN50(self):
         env = SupplyChainMultiProduct(demand_range=(0, 400),
@@ -205,10 +211,36 @@ class TestMultiproduct2PerStage():
                                       stochastic_leadtimes=True,
                                       avg_leadtime=2,
                                       max_leadtime=4)
-        env.reset()
-        done = False
-        while not done:
-            action = env.action_space.sample()
-            _, _, done, _ = env.step(action)
+        self._run_episode(env, expected_rewards=-33551041.591334336)
 
       
+    def test_SupplyChainMultiProduct_3products(self):
+        env = SupplyChainMultiProduct(num_products=3)
+        self._run_episode(env, expected_rewards=-54056520.05437983)
+
+    def test_scenario_m3p_N20(self):
+        env = SupplyChainMultiProduct(num_products=3,
+                                      demand_range=(0, 400),
+                                      avg_demand_range=[100, 300],
+                                      demand_std=20,
+                                      demand_sen_peaks=4,
+                                      demand_perturb_norm=True,
+                                      stochastic_leadtimes=True,
+                                      avg_leadtime=2,
+                                      max_leadtime=4)
+        self._run_episode(env, expected_rewards=-53296463.58439423)
+
+    def test_scenario_m3p_rN50(self):
+        env = SupplyChainMultiProduct(num_products=3,
+                                      demand_range=(0, 400),
+                                      avg_demand_range=[100, 300],
+                                      demand_std=50,
+                                      demand_perturb_norm=True,
+                                      stochastic_leadtimes=True,
+                                      avg_leadtime=2,
+                                      max_leadtime=4)
+        self._run_episode(env, expected_rewards=-52830295.83597374)
+    
+    def test_SupplyChainMultiProduct_10products(self):
+        env = SupplyChainMultiProduct(num_products=10)
+        self._run_episode(env, expected_rewards=-479369996.1741881)

@@ -51,17 +51,17 @@ class SupplyChainMultiProduct(SupplyChainEnv):
         return nodes_info
 
     def __init__(self, num_products=2,
-                 initial_stocks=[[800,600]]*8, 
-                 stock_capacities=[[1600]*2]+[[1800]*2]+[[6400]*2,[7200]*2]+[[1600]*2]+[[1800]*2]+[[1600]*2]+[[1800]*2],
+                 initial_stocks=None,
+                 stock_capacities=None,
                  stock_costs=1,
-                 initial_supply=[[[600]*2]*2]+[[[840]*2]*2], 
-                 supply_capacities=[[600]*2]+[[840]*2],
-                 supply_costs=[[6]*2]+[[4]*2],
-                 dest_cost=[[2]*2]*2,
+                 initial_supply=None,
+                 supply_capacities=None,
+                 supply_costs=None,
+                 dest_cost=None,
                  ship_capacity=[2000,2000],
-                 initial_shipments=[[[600]*2]*2,[[840]*2]*2]+[[[240]*2]*2]*4,
+                 initial_shipments=None,
                  processing_capacities=[1600,2000], 
-                 processing_costs=[[12]*2,[10]*2],
+                 processing_costs=None,
                  processing_ratio=3,                 
                  unmet_demand_cost=216, 
                  exceeded_stock_capacity_cost=10,
@@ -78,6 +78,28 @@ class SupplyChainMultiProduct(SupplyChainEnv):
                  total_time_steps=360, 
                  seed=None,
                  build_info=False):
+        
+        if not initial_stocks:
+            if num_products == 2:
+                initial_stocks=[[800,600]]*8
+            elif num_products == 3:
+                initial_stocks=[[800,600,700]]*8
+            else:
+                initial_stocks=[[800]*num_products]*8
+        
+        if not stock_capacities:
+            stock_capacities=[[1600]*num_products,[1800]*num_products,
+                              [6400]*num_products,[7200]*num_products,
+                              [1600]*num_products,[1800]*num_products,
+                              [1600]*num_products,[1800]*num_products]
+        
+        if not initial_supply: initial_supply=[[[600]*avg_leadtime]*num_products,[[840]*avg_leadtime]*num_products]        
+        if not supply_capacities: supply_capacities=[[600]*num_products,[840]*num_products]
+        if not supply_costs: supply_costs=[[6]*num_products,[4]*num_products]
+        if not dest_cost: dest_cost=[[2]*2]*num_products
+        if not initial_shipments: 
+            initial_shipments=[[[600]*avg_leadtime]*num_products,[[840]*avg_leadtime]*num_products]+[[[240]*avg_leadtime]*num_products]*4
+        if not processing_costs: processing_costs=[[12]*num_products,[10]*num_products]
 
         nodes_info = self._create_chain(initial_stocks, stock_capacities, stock_costs, initial_supply,
                                         supply_capacities, supply_costs, dest_cost, ship_capacity, initial_shipments,
