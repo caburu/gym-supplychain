@@ -286,7 +286,7 @@ class SC_Node:
                         # A aplicação da ação retorna a quantidade de material a ser enviado para cada destino 
                         # e o custo de cada da operação.
                         # Obs: as ações se referem à porcentagem da quantidade de material atualmente em estoque.
-                        amounts, _ = ship_action.apply(action_values[next_action_idx:next_action_idx+len(self.dests)], maximum=available_material)
+                        amounts, _ = ship_action.apply(action_values[next_action_idx:next_action_idx+len(self.dests)], maximum=available_material)                        
                         
                         # As quantidades a serem enviadas geralmente são as mesmas que saíram do estoque
                         # isso pode ser diferente para as fábricas, porque deve-se aplicar as razões de processamento.
@@ -356,7 +356,7 @@ class SC_Node:
                             self.est_costs['ship'][prod] = ship_costs
                             self.est_units['ship'][prod] = sum(amounts_to_ship)
             
-                    # Agora que o processamento e transporte foi tratado, vamos contabiliza os possíveis
+                    # Agora que o processamento e transporte foi tratado, vamos contabilizar os possíveis
                     # custos de penalização por ter excedido as capacidades de processamento e transporte
                     
                     total_cost += self.exceeded_process_capacity_cost * exceeded_processing_capacity
@@ -369,8 +369,12 @@ class SC_Node:
                         self.est_costs['ship_pen'][prod] = self.exceeded_ship_capacity_cost*exceeded_ship_capacity
                         self.est_units['ship_pen'][prod] = exceeded_ship_capacity
                     
+                    # Apontando para as ações do próximo produto
+                    next_action_idx += len(self.dests)
+
                     # Volta a posição dos lead times de transporte porque eles são os mesmos independente do produto.
-                    next_leadtime_idx = next_prod_leadtime_idx
+                    next_leadtime_idx = next_prod_leadtime_idx                                    
+
 
         # Se é um revendedor (nó de último nível) atende a demanda do cliente por cada produto (o que for possível)
         else:
@@ -663,7 +667,7 @@ class SupplyChainEnv(gym.Env):
 
     def step(self, action):
         action = self._denormalize_action(action)
-        
+
         self.time_step += 1        
 
         total_cost = 0
@@ -671,16 +675,18 @@ class SupplyChainEnv(gym.Env):
         next_action_idx = 0
         next_leadt_idx  = 0
         next_customer = 0
+        
         for node in self.nodes:
+            
             actions_to_apply   = action[next_action_idx:next_action_idx+node.num_expected_actions()]
+            next_action_idx   += node.num_expected_actions()
+
             if self.stochastic_leadtimes:
                 num_leadtime_values = node.num_supply_actions + node.num_ship_actions//self.num_products
                 leadtimes_to_apply = self.leadtimes[self.time_step-1, next_leadt_idx:next_leadt_idx+num_leadtime_values]
                 next_leadt_idx += num_leadtime_values
             else:
-                leadtimes_to_apply = node.num_expected_actions()*[self.avg_leadtime]
-            
-            next_action_idx   += node.num_expected_actions()
+                leadtimes_to_apply = node.num_expected_actions()*[self.avg_leadtime]            
             
             if node.last_level:
                 demand = self.customer_demands[self.time_step-1, next_customer]
