@@ -8,27 +8,31 @@ class TestSupplyChainEnv:
     def _data_folder(self):
         return os.path.dirname(os.path.abspath(__file__))+'/data/'
 
-    def _create_simple_chain(self, initial_stock = 0, stock_capacity = 10, stock_cost = 1, dest_cost = 2, supply_cost = 5,
-                             supply_capacity = 100, processing_cost = 10, processing_capacity = 100):
+    def _create_simple_chain(self, num_products = 1, initial_stock = 0, stock_capacity = 10, stock_cost = 1, dest_cost = 2, supply_cost = 5,
+                             supply_capacity = 100, processing_cost = 10, processing_capacity = 100, ship_capacity = 10):
         nodes_info = {}
         nodes_info['Supplier'] = {'initial_stock':initial_stock, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                     'supply_capacity':supply_capacity, 'supply_cost':supply_cost,
-                                    'destinations':['Factory'], 'dest_costs':[dest_cost]*2}
+                                    'destinations':['Factory'], 'dest_costs':[[dest_cost]*2]*num_products, 
+                                    'ship_capacity':[ship_capacity]*2}
         nodes_info['Factory'] = {'initial_stock':initial_stock, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                     'processing_capacity':processing_capacity, 'processing_cost':processing_cost,
-                                    'destinations':['Wholesal'], 'dest_costs':[dest_cost]*2}
+                                    'destinations':['Wholesal'], 'dest_costs':[[dest_cost]*2]*num_products, 
+                                    'ship_capacity':[ship_capacity]*2}
         nodes_info['Wholesal'] = {'initial_stock':initial_stock, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
-                                    'destinations':['Retailer'], 'dest_costs':[dest_cost]*2}
+                                    'destinations':['Retailer'], 'dest_costs':[[dest_cost]*2]*num_products, 
+                                    'ship_capacity':[ship_capacity]*2}
         nodes_info['Retailer'] = {'initial_stock':initial_stock, 'stock_capacity':stock_capacity, 'stock_cost':stock_cost,
                                     'last_level':True}
         return nodes_info
     
-    def _create_env(self, stochastic_leadtimes=False, avg_leadtime=2, max_leadtime=4, build_info=False):
-        nodes_info = self._create_simple_chain(initial_stock=10, stock_capacity=100, stock_cost=1, dest_cost=2, supply_cost=5,
-                             supply_capacity=50, processing_cost=10, processing_capacity=100)
+    def _create_env(self, num_products=1, stochastic_leadtimes=False, avg_leadtime=2, max_leadtime=4, build_info=False):
+        nodes_info = self._create_simple_chain(num_products=num_products, initial_stock=10, stock_capacity=100, 
+                             stock_cost=1, dest_cost=2, supply_cost=5,
+                             supply_capacity=50, processing_cost=10, processing_capacity=100, ship_capacity = 100)
 
-        env = SupplyChainEnv(nodes_info, unmet_demand_cost=1000, 
-                 exceeded_stock_capacity_cost=1000, exceeded_process_capacity_cost=1000,
+        env = SupplyChainEnv(nodes_info, num_products=num_products, unmet_demand_cost=1000, 
+                 exceeded_stock_capacity_cost=1000, exceeded_process_capacity_cost=1000, exceeded_ship_capacity_cost=1000,
                  demand_range=(0,5), demand_std=None, demand_sen_peaks=None, avg_demand_range=None, 
                  processing_ratio=2, stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime,
                  total_time_steps=5, seed=None, build_info=build_info, demand_perturb_norm=False)
@@ -49,9 +53,9 @@ class TestSupplyChainEnv:
         env.seed(0)
         env.reset()
         for node in env.nodes:
-            assert node.stock == 10
-            assert node.stock_capacity == 100
-            assert node.stock_cost == 1
+            assert node.stock == [10]
+            assert node.stock_capacities == [100]
+            assert node.stock_cost == [1]
 
     def test_simpleenv(self):
         env = self._create_simpleenv()   
@@ -60,10 +64,10 @@ class TestSupplyChainEnv:
         env.seed(0)
         env.reset() # timestep=0
 
-        assert np.all(env.customer_demands == [[4], [5], [0], [3], [3], [3]])
+        assert np.all(env.customer_demands.flatten() == [4, 5, 0, 3, 3, 3])
 
         for node in env.nodes:
-            assert len(node.shipments) == 0
+            assert node.shipments_by_prod == [[]]
         
         # ação para fornecer o máximo de material possível
         supply_action = np.array([1,0,0,0,0,0])
@@ -71,53 +75,53 @@ class TestSupplyChainEnv:
         
         env.step(supply_action) # timestep=1
 
-        assert env.nodes[0].shipments == [(3,50)]
+        assert env.nodes[0].shipments_by_prod[0] == [(3,50)]
         for node in env.nodes[1:]:
-            assert len(node.shipments) == 0
+            assert len(node.shipments_by_prod[0]) == 0
         for node in env.nodes[:-1]:
             assert node.stock == 10
         assert env.nodes[-1].stock == 10 - env.customer_demands[0]
 
         # ação para fornecer o máximo de material possível e enviar o máximo de material possível também
         send_all_action = np.array(6*[1])
-        supply_action = 2*send_all_action-1
+        send_all_action = 2*send_all_action-1
         
         env.step(send_all_action) # timestep=2
 
-        assert env.nodes[0].shipments == [(3,50), (4,50)]
-        assert env.nodes[1].shipments == [(4,10)]
-        assert env.nodes[2].shipments == [(4,5)]
-        assert env.nodes[3].shipments == [(4,10)]
+        assert env.nodes[0].shipments_by_prod[0] == [(3,50), (4,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(4,10)]
+        assert env.nodes[2].shipments_by_prod[0] == [(4,5)]
+        assert env.nodes[3].shipments_by_prod[0] == [(4,10)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10 - sum(env.customer_demands[:env.time_step]))
         
         env.step(send_all_action) # timestep=3
         
-        assert env.nodes[0].shipments == [(4,50), (5,50)]
-        assert env.nodes[1].shipments == [(4,10), (5,50)]
-        assert env.nodes[2].shipments == [(4, 5)]
-        assert env.nodes[3].shipments == [(4,10)]
+        assert env.nodes[0].shipments_by_prod[0] == [(4,50), (5,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(4,10), (5,50)]
+        assert env.nodes[2].shipments_by_prod[0] == [(4, 5)]
+        assert env.nodes[3].shipments_by_prod[0] == [(4,10)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10 - sum(env.customer_demands[:env.time_step]))
         
         env.step(send_all_action) # timestep=4
         
-        assert env.nodes[0].shipments == [(5,50), (6,50)]
-        assert env.nodes[1].shipments == [(5,50), (6,50)]
-        assert env.nodes[2].shipments == [(6, 5)]
-        assert env.nodes[3].shipments == [(6, 5)]
+        assert env.nodes[0].shipments_by_prod[0] == [(5,50), (6,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(5,50), (6,50)]
+        assert env.nodes[2].shipments_by_prod[0] == [(6, 5)]
+        assert env.nodes[3].shipments_by_prod[0] == [(6, 5)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10+10 - sum(env.customer_demands[:env.time_step]))
         
         env.step(send_all_action) # timestep=5
         
-        assert env.nodes[0].shipments == [(6,50), (7,50)]
-        assert env.nodes[1].shipments == [(6,50), (7,50)]
-        assert env.nodes[2].shipments == [(6, 5), (7,25)]
-        assert env.nodes[3].shipments == [(6, 5)]
+        assert env.nodes[0].shipments_by_prod[0] == [(6,50), (7,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(6,50), (7,50)]
+        assert env.nodes[2].shipments_by_prod[0] == [(6, 5), (7,25)]
+        assert env.nodes[3].shipments_by_prod[0] == [(6, 5)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10+10 - sum(env.customer_demands[:env.time_step]))
@@ -129,7 +133,7 @@ class TestSupplyChainEnv:
         env.seed(0)
         env.reset() # timestep=0
 
-        assert np.all(env.customer_demands == [[4], [5], [0], [3], [3], [3]])
+        assert np.all(env.customer_demands.flatten() == [4, 5, 0, 3, 3, 3])
         
         leadtimes = env.leadtimes
         
@@ -141,7 +145,7 @@ class TestSupplyChainEnv:
                                     [1, 1, 1, 2]])
 
         for node in env.nodes:
-            assert len(node.shipments) == 0
+            assert len(node.shipments_by_prod[0]) == 0
         
         # ação para fornecer o máximo de material possível
         supply_action = np.array([1,0,0,0,0,0])
@@ -149,9 +153,9 @@ class TestSupplyChainEnv:
         
         env.step(supply_action) # timestep=1
 
-        assert env.nodes[0].shipments == [(4,50)]
+        assert env.nodes[0].shipments_by_prod[0] == [(4,50)]
         for node in env.nodes[1:]:
-            assert len(node.shipments) == 0
+            assert len(node.shipments_by_prod[0]) == 0
         for node in env.nodes[:-1]:
             assert node.stock == 10
         assert env.nodes[-1].stock == 10 - env.customer_demands[0]
@@ -162,40 +166,40 @@ class TestSupplyChainEnv:
         
         env.step(send_all_action) # timestep=2
 
-        assert env.nodes[0].shipments == [(4,50), (5,50)]
-        assert env.nodes[1].shipments == [(4,10)]
-        assert env.nodes[2].shipments == [(3, 5)]
-        assert env.nodes[3].shipments == [(4,10)]
+        assert env.nodes[0].shipments_by_prod[0] == [(4,50), (5,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(4,10)]
+        assert env.nodes[2].shipments_by_prod[0] == [(3, 5)]
+        assert env.nodes[3].shipments_by_prod[0] == [(4,10)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10 - sum(env.customer_demands[:env.time_step]))
         
         env.step(send_all_action) # timestep=3
         
-        assert env.nodes[0].shipments == [(4,50), (5,50), (5,50)]
-        assert env.nodes[1].shipments == [(4,10)]
-        assert env.nodes[2].shipments == []
-        assert env.nodes[3].shipments == [(4,10), (6,5)]
+        assert env.nodes[0].shipments_by_prod[0] == [(4,50), (5,50), (5,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(4,10)]
+        assert env.nodes[2].shipments_by_prod[0] == []
+        assert env.nodes[3].shipments_by_prod[0] == [(4,10), (6,5)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10 - sum(env.customer_demands[:env.time_step]))
         
         env.step(send_all_action) # timestep=4
         
-        assert env.nodes[0].shipments == [(5,50), (5,50), (6,50)]
-        assert env.nodes[1].shipments == [(6,50)]
-        assert env.nodes[2].shipments == [(6, 5)]
-        assert env.nodes[3].shipments == [(6, 5)]
+        assert env.nodes[0].shipments_by_prod[0] == [(5,50), (5,50), (6,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(6,50)]
+        assert env.nodes[2].shipments_by_prod[0] == [(6, 5)]
+        assert env.nodes[3].shipments_by_prod[0] == [(6, 5)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10+10 - sum(env.customer_demands[:env.time_step]))
         
         env.step(send_all_action) # timestep=5
         
-        assert env.nodes[0].shipments == [(6,50), (6,50)]
-        assert env.nodes[1].shipments == [(6,50), (6,100)]
-        assert env.nodes[2].shipments == [(6, 5),]
-        assert env.nodes[3].shipments == [(6, 5)]
+        assert env.nodes[0].shipments_by_prod[0] == [(6,50), (6,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(6,50), (6,100)]
+        assert env.nodes[2].shipments_by_prod[0] == [(6, 5),]
+        assert env.nodes[3].shipments_by_prod[0] == [(6, 5)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10+10 - sum(env.customer_demands[:env.time_step]))

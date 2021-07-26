@@ -3,3 +3,4 @@ from gym_supplychain.envs.beergame2_env import BeerGameEnv2
 from gym_supplychain.envs.supplychain_env import SupplyChainEnv
 from gym_supplychain.envs.supplychain_2perstage_env import SupplyChain2perStageEnv
 from gym_supplychain.envs.supplychain_2perstage_env import SupplyChain2perStageSeasonalEnv
+from gym_supplychain.envs.supplychain_multiproduct_env import SupplyChainMultiProduct
