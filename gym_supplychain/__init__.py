@@ -34,3 +34,8 @@ register(
     id='sc-Nperstage-multiproduct-v0',
     entry_point='gym_supplychain.envs:SupplyChainNPerStage',
 )
+
+register(
+    id='sc-2perstage-multiproduct-inccosts-v0',
+    entry_point='gym_supplychain.envs:SupplyChainMultiProduct_IncreasingCosts',
+)

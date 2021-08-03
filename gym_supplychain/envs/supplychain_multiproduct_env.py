@@ -109,3 +109,51 @@ class SupplyChainMultiProduct(SupplyChainEnv):
                          total_time_steps=total_time_steps, 
                          stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime, 
                          seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm)
+
+
+class SupplyChainMultiProduct_IncreasingCosts(SupplyChainMultiProduct):
+    def __init__(self, num_products=2,
+                 initial_stocks=None,
+                 stock_capacities=None,
+                 initial_supply=None,
+                 supply_capacities=None,
+                 ship_capacity=None,
+                 initial_shipments=None,
+                 processing_capacities=None,
+                 processing_ratio=3,                 
+                 unmet_demand_cost=216,
+                 exceeded_stock_capacity_cost=10,
+                 exceeded_process_capacity_cost=10,
+                 exceeded_ship_capacity_cost=10,
+                 demand_range=(0,400),
+                 demand_std=None,
+                 demand_sen_peaks=None,
+                 avg_demand_range=None,
+                 demand_perturb_norm=False,
+                 stochastic_leadtimes=False,
+                 avg_leadtime=2,
+                 max_leadtime=2,
+                 total_time_steps=360, 
+                 seed=None,
+                 build_info=False):
+                
+        supply_costs=[[6*(i+1) for i in range(num_products)],
+                      [4*(i+1) for i in range(num_products)]]
+
+        dest_cost=[[2*(i+1)]*2 for i in range(num_products)]
+        
+        processing_costs=[[12*(i+1) for i in range(num_products)],
+                          [10*(i+1) for i in range(num_products)]]
+
+        stock_costs = [1*(i+1) for i in range(num_products)]
+
+        super().__init__(supply_costs=supply_costs, dest_cost=dest_cost, processing_costs=processing_costs, stock_costs=stock_costs,
+                         num_products=num_products, unmet_demand_cost=unmet_demand_cost, 
+                         exceeded_stock_capacity_cost=exceeded_stock_capacity_cost,
+                         exceeded_process_capacity_cost=exceeded_process_capacity_cost,
+                         exceeded_ship_capacity_cost=exceeded_ship_capacity_cost,
+                         processing_ratio=processing_ratio, demand_range=demand_range,
+                         demand_std=demand_std, demand_sen_peaks=demand_sen_peaks, avg_demand_range=avg_demand_range,
+                         total_time_steps=total_time_steps, 
+                         stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime, 
+                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm)

@@ -1,7 +1,7 @@
 import numpy as np
 
 from ..supplychain_env import SupplyChainEnv
-from ..supplychain_multiproduct_env import SupplyChainMultiProduct
+from ..supplychain_multiproduct_env import SupplyChainMultiProduct, SupplyChainMultiProduct_IncreasingCosts
 
 class TestMultiproduct2PerStage():
 
@@ -71,11 +71,13 @@ class TestMultiproduct2PerStage():
         rewards = 0
         while not done:
             action = env.action_space.sample()
-            _, reward, done, _ = env.step(action)
+            _, reward, done, info = env.step(action)
             rewards += reward
         
         if expected_rewards:
             assert np.allclose(expected_rewards, rewards)
+        
+        return info
     
     def test_basic_dynamics(self):
         env = self._create_env(build_info=True)
@@ -271,3 +273,21 @@ class TestMultiproduct2PerStage():
     def test_SupplyChainMultiProduct_10products(self):
         env = SupplyChainMultiProduct(num_products=10)
         self._run_episode(env, expected_rewards=-173415102.8513805)
+    
+    def test_increasing_costs(self):
+        env  = SupplyChainMultiProduct(build_info=True)
+        env2 = SupplyChainMultiProduct_IncreasingCosts(build_info=True)
+
+        info  = self._run_episode(env, expected_rewards=-34704704.078214735)
+        info2 = self._run_episode(env2)
+
+        info  = info['sc_episode']
+        info2 = info2['sc_episode']
+
+        for key in info['units'].keys():
+            for i in range(env.num_products):
+                assert info['units'][key][i] == info2['units'][key][i]
+                if key in ['stock', 'supply', 'process', 'ship']:
+                    assert info['costs'][key][i]*(i+1) == info2['costs'][key][i]
+                else:
+                    assert info['costs'][key][i] == info2['costs'][key][i]
