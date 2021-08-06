@@ -194,8 +194,8 @@ class SupplyChainMultiProduct_DemConfigByProd(SupplyChainMultiProduct):
         if num_products > 2:
             demand_range.append((0,400))
             demand_stds.append(demand_std)
-            demand_sen_peaks.append(3)
-            avg_demand_range.append((100,200))                  
+            demand_sen_peaks.append(2)
+            avg_demand_range.append((100,300))
 
         super().__init__(demand_config_by_product=demand_config_by_product,
                          num_products=num_products, unmet_demand_cost=unmet_demand_cost, 
@@ -248,8 +248,8 @@ class SupplyChainMultiProduct_DemConfigByProd_IncCosts(SupplyChainMultiProduct):
         if num_products > 2:
             demand_range.append((0,400))
             demand_stds.append([demand_std])
-            demand_sen_peaks.append(3)
-            avg_demand_range.append((100,200))                
+            demand_sen_peaks.append(2)
+            avg_demand_range.append((100,300))               
 
         supply_costs=[[6*(i+1) for i in range(num_products)],
                       [4*(i+1) for i in range(num_products)]]

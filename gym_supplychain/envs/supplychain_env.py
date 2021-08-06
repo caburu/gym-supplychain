@@ -7,7 +7,6 @@ from gym import spaces
 from .demands_generator import generate_demand
 
 # TODO: definir valores padrões ao criar o ambiente (ideal é que mantivesse o comportamento anterior)
-# TODO: testar com multiproduto
 
 # TODO: melhorar desempenho: usar sempre numpy array ao invés de listas.
 # TODO: melhorar desempenho: usar Counter para atualiza o dicionário de estatísticas
@@ -728,7 +727,7 @@ class SupplyChainEnv(gym.Env):
                 if not self.demand_config_by_product:
                     demand = self.customer_demands[self.time_step-1, next_customer]
                 else:
-                    demand = [self.customer_demands[prod, self.time_step-1, next_customer] for prod in range(self.num_products)]
+                    demand = [self.customer_demands[prod][self.time_step-1, next_customer] for prod in range(self.num_products)]
                 next_customer += 1
             else:
                 demand = None
@@ -769,12 +768,13 @@ class SupplyChainEnv(gym.Env):
         """ 
         # Primeiro guardamos as demandas (normalizadas)
         if not self.demand_config_by_product:
-            # Nesse caso é por varejista/produto
             demands_obs = (self.customer_demands[self.time_step,:].flatten() - self.demand_range[0])/(self.demand_range_value)
         else:
-            # Nesse caso é por produto/varejista
-            demands_obs = [(self.customer_demands[prod][self.time_step,:].flatten() - self.demand_range[prod][0])/(self.demand_range_value[prod])
-                           for prod in range(self.num_products)]
+            demands_obs = []
+            for n in range(len(self.last_level_nodes)):
+                demands_obs.append([(self.customer_demands[prod][self.time_step,n].flatten() - self.demand_range[prod][0])/(self.demand_range_value[prod])
+                                   for prod in range(self.num_products)])
+            demands_obs = np.array(demands_obs).flatten()
             
         # Depois pegamos os dados de cada nó
         nodes_obs = []

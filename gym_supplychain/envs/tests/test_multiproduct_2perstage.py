@@ -3,6 +3,8 @@ import numpy as np
 from ..supplychain_env import SupplyChainEnv
 from ..supplychain_multiproduct_env import SupplyChainMultiProduct, SupplyChainMultiProduct_IncreasingCosts, SupplyChainMultiProduct_DemConfigByProd, SupplyChainMultiProduct_DemConfigByProd_IncCosts
 
+# TODO: Testes `DemConfigByProd` só testam por erro de execução, não funcionamento
+
 class TestMultiproduct2PerStage():
 
     def _create_chain(self):
@@ -293,27 +295,15 @@ class TestMultiproduct2PerStage():
                     assert info['costs'][key][i] == info2['costs'][key][i]
     
     def test_DemConfigByProd(self):
-        env  = SupplyChainMultiProduct_DemConfigByProd(build_info=True)
-        env.seed(0)
-        env.reset()
-        np.save('DemConfigByProd2.npy', env.customer_demands)
-        self._run_episode(env)
+        env  = SupplyChainMultiProduct_DemConfigByProd(demand_std=20, demand_perturb_norm=True, build_info=True)
+        self._run_episode(env, expected_rewards=-26065306.020432994)
 
-        env  = SupplyChainMultiProduct_DemConfigByProd(num_products=3, build_info=True)
-        env.seed(0)
-        env.reset()
-        np.save('DemConfigByProd3.npy', env.customer_demands)
-        self._run_episode(env)
+        env  = SupplyChainMultiProduct_DemConfigByProd(num_products=3, demand_std=20, demand_perturb_norm=True, build_info=True)
+        self._run_episode(env, expected_rewards=-43549397.38202231)
     
     def test_DemConfigByProd_IncCosts(self):
-        env  = SupplyChainMultiProduct_DemConfigByProd_IncCosts(build_info=True)
-        env.seed(0)
-        env.reset()
-        np.save('DemConfigByProd_IncCosts2.npy', env.customer_demands)
-        self._run_episode(env)
+        env  = SupplyChainMultiProduct_DemConfigByProd_IncCosts(demand_std=20, demand_perturb_norm=True, build_info=True)
+        self._run_episode(env, expected_rewards=-31556408.636398595)
         
-        env  = SupplyChainMultiProduct_DemConfigByProd_IncCosts(num_products=3, build_info=True)
-        env.seed(0)
-        env.reset()
-        np.save('DemConfigByProd_IncCosts3.npy', env.customer_demands)
-        self._run_episode(env)
+        env  = SupplyChainMultiProduct_DemConfigByProd_IncCosts(num_products=3, demand_std=20, demand_perturb_norm=True, build_info=True)
+        self._run_episode(env, expected_rewards=-59867745.134582885)
