@@ -482,7 +482,8 @@ class SupplyChainEnv(gym.Env):
     #metadata = {'render.modes': ['human']}
     def __init__(self, nodes_info, num_products=1, unmet_demand_cost=1000, 
                  exceeded_stock_capacity_cost=1000, exceeded_process_capacity_cost=1000,
-                 exceeded_ship_capacity_cost=1000,
+                 exceeded_ship_capacity_cost=1000, 
+                 demand_config_by_product=False,
                  demand_range=(10,20), demand_std=None, demand_sen_peaks=None, avg_demand_range=None, 
                  processing_ratio=3, stochastic_leadtimes=False, avg_leadtime=2, max_leadtime=2,
                  total_time_steps=360, seed=None,
@@ -562,18 +563,38 @@ class SupplyChainEnv(gym.Env):
         create_nodes(nodes_info)
         self.total_time_steps = total_time_steps                
         self.rand_generator = np.random.RandomState(seed)
+        
+        self.demand_config_by_product = demand_config_by_product
+        
         self.demand_range = demand_range
-        self.demand_range_value = demand_range[1]-self.demand_range[0]
         self.demand_std = demand_std
         self.demand_sen_peaks = demand_sen_peaks
-        if avg_demand_range:
-            self.minavg_demand = avg_demand_range[0]
-            self.maxavg_demand = avg_demand_range[1]
-        else:
-            self.minavg_demand = None
-            self.maxavg_demand = None
+        self.minavg_demand = None
+        self.maxavg_demand = None
         self.demand_perturb_norm = demand_perturb_norm
-        
+
+        if not self.demand_config_by_product:
+            self.demand_range_value = self.demand_range[1]-self.demand_range[0]
+            if avg_demand_range:
+                self.minavg_demand = avg_demand_range[0]
+                self.maxavg_demand = avg_demand_range[1]
+        else:
+            self.demand_range_value = [self.demand_range[prod][1]-self.demand_range[prod][0] for prod in range(num_products)]
+            self.minavg_demand = [None]*num_products
+            self.maxavg_demand = [None]*num_products
+            for prod in range(num_products):
+                if avg_demand_range[prod]:
+                    self.minavg_demand[prod] = avg_demand_range[prod][0]
+                    self.maxavg_demand[prod] = avg_demand_range[prod][1]
+
+        # Não suporta demanda fixa (apenas para evitar ficar fazendo if toda hora 
+        # para testar isso na hora de montar o estado)                        
+        if not self.demand_config_by_product:
+            assert self.demand_range[0] != self.demand_range[1]
+        else:
+            for prod in range(num_products):
+                assert self.demand_range[prod][0] != self.demand_range[prod][1]
+
         if stochastic_leadtimes:
             # Os lead times são um para cada combinação produto/fornecedor, mais
             # um para cada link de transporte (nesse caso não é por produto porque
@@ -583,10 +604,6 @@ class SupplyChainEnv(gym.Env):
                 if node.num_supply_actions > 0:
                     self.count_leadtimes_per_timestep += self.num_products
                 self.count_leadtimes_per_timestep += len(node.dests) if node.dests else 0
-
-        # Não suporta demanda fixa (apenas para evitar ficar fazendo if toda hora 
-        # para testar isso na hora de montar o estado)
-        assert self.demand_range[0] != self.demand_range[1]
 
         # Definição dos espaços de ações e de estados
         action_space_size = 0
@@ -618,13 +635,32 @@ class SupplyChainEnv(gym.Env):
 
         self.current_reward = 0
         self.episode_rewards = 0
-        # gerando as demandas de todo o episódio (por período/varejista/produto)
-        self.customer_demands = generate_demand(self.rand_generator, 
-                                                (self.total_time_steps+1, len(self.last_level_nodes), self.num_products), 
-                                                self.total_time_steps, self.demand_range[0], self.demand_range[1],
-                                                std=self.demand_std, sen_peaks=self.demand_sen_peaks,
-                                                minavg=self.minavg_demand, maxavg=self.maxavg_demand,
-                                                perturb_norm=self.demand_perturb_norm)
+
+        # Se a configuração de demandas é a mesma pra todos os produtos
+        # Obs: o formato dos dados de demanda fica diferente nos dois casos, isso foi feito para
+        #      manter compatibilidade com experimentos anteriores
+        if not self.demand_config_by_product:
+            
+            # gerando as demandas de todo o episódio (por período/varejista/produto)
+            self.customer_demands = generate_demand(self.rand_generator, 
+                                                    (self.total_time_steps+1, len(self.last_level_nodes), self.num_products), 
+                                                    self.total_time_steps, self.demand_range[0], self.demand_range[1],
+                                                    std=self.demand_std, sen_peaks=self.demand_sen_peaks,
+                                                    minavg=self.minavg_demand, maxavg=self.maxavg_demand,
+                                                    perturb_norm=self.demand_perturb_norm)
+        else: # se a configuração de demanda é separada por produto
+            
+            # gerando as demandas de todo o episódio (por produto/período/varejista)
+            self.customer_demands = []
+            for prod in range(self.num_products):
+                self.customer_demands.append(
+                    generate_demand(self.rand_generator, 
+                                    (self.total_time_steps+1, len(self.last_level_nodes)),
+                                    self.total_time_steps, self.demand_range[prod][0], self.demand_range[prod][1],
+                                    std=self.demand_std[prod], sen_peaks=self.demand_sen_peaks[prod],
+                                    minavg=self.minavg_demand[prod], maxavg=self.maxavg_demand[prod],
+                                    perturb_norm=self.demand_perturb_norm[prod]))
+
         
         if self.stochastic_leadtimes:
             # Gerando os leadtimes para todo o episódio
@@ -689,7 +725,10 @@ class SupplyChainEnv(gym.Env):
                 leadtimes_to_apply = node.num_expected_actions()*[self.avg_leadtime]            
             
             if node.last_level:
-                demand = self.customer_demands[self.time_step-1, next_customer]
+                if not self.demand_config_by_product:
+                    demand = self.customer_demands[self.time_step-1, next_customer]
+                else:
+                    demand = [self.customer_demands[prod, self.time_step-1, next_customer] for prod in range(self.num_products)]
                 next_customer += 1
             else:
                 demand = None
@@ -706,8 +745,6 @@ class SupplyChainEnv(gym.Env):
         if self.build_info:
             self._update_statistics()     
             self.current_info = self._build_return_info()
-        
-        #print(self.customer_demands[self.time_step,:], end=' ')
 
         return (self.current_state, self.current_reward, is_terminal, self.current_info)
 
@@ -731,7 +768,13 @@ class SupplyChainEnv(gym.Env):
                 - O quanto de material está chegando nos períodos seguintes.
         """ 
         # Primeiro guardamos as demandas (normalizadas)
-        demands_obs = (self.customer_demands[self.time_step,:].flatten() - self.demand_range[0])/(self.demand_range_value)
+        if not self.demand_config_by_product:
+            # Nesse caso é por varejista/produto
+            demands_obs = (self.customer_demands[self.time_step,:].flatten() - self.demand_range[0])/(self.demand_range_value)
+        else:
+            # Nesse caso é por produto/varejista
+            demands_obs = [(self.customer_demands[prod][self.time_step,:].flatten() - self.demand_range[prod][0])/(self.demand_range_value[prod])
+                           for prod in range(self.num_products)]
             
         # Depois pegamos os dados de cada nó
         nodes_obs = []
@@ -756,8 +799,11 @@ class SupplyChainEnv(gym.Env):
         print('TIMESTEP:', self.time_step)
         for node in self.nodes:
             node.render()
-            print()                 
-        print('Next demands  :', self.customer_demands[self.time_step,:])
+            print()
+        if not self.demand_config_by_product:
+            print('Next demands  :', self.customer_demands[self.time_step,:])
+        else:
+            print('Next demands (by prod) :', [self.customer_demands[prod,self.time_step,:] for prod in range(self.num_products)])
         print('Current state :', self.current_state)
         print('Current reward:', round(self.current_reward,3))
         print('='*30)
