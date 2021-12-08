@@ -121,7 +121,9 @@ class SC_Node:
                  stock_capacity=0, supply_capacity=0, processing_capacity=0, processing_ratio=0,
                  last_level=False, stock_cost=0, supply_cost=0, processing_cost=0, 
                  exceeded_stock_capacity_cost=1, exceeded_process_capacity_cost=1, exceeded_ship_capacity_cost=1,
-                 unmet_demand_cost=1, max_leadtime=4, build_info=False):
+                 unmet_demand_cost=1, avg_leadtime=2, max_leadtime=4, build_info=False):
+        # ALTERAÇÃO: Adicionado parâmetro de leadtime médio
+
         self.build_info = build_info
         self.label = label
         self.num_products = num_products
@@ -173,6 +175,7 @@ class SC_Node:
         
         self.dests = None
         self.shipments_by_prod = [[] for i in range(self.num_products)]
+        self.avg_leadtime = avg_leadtime
         self.max_leadtime = max_leadtime
 
     def _treat_int_or_list_param(self, param, default_value=0):
@@ -220,8 +223,9 @@ class SC_Node:
         arrived_material = np.zeros(self.num_products)
         # O primeiro passo é receber o material que está pra chegar
         for prod, shipments in enumerate(self.shipments_by_prod):
-            while shipments and shipments[0][0] == time_step:
-                _, amount = heapq.heappop(shipments)
+            # ALTERAÇÃO: a informação de tempo de chegada agora é a segunda da tupla
+            while shipments and shipments[0][1] == time_step:
+                _, _, amount = heapq.heappop(shipments)
                 arrived_material[prod] += amount
         
         # Adiciona o material no estoque
@@ -250,7 +254,8 @@ class SC_Node:
                     next_action_idx += 1
                     # adiciona o material para ser fornecido
                     if amount > 0:
-                        self._ship_material(time_step+leadtimes[next_leadtime_idx], prod, amount)
+                        # ALTERAÇÃO: acrescentado parâmetro do momento de envio
+                        self._ship_material(time_step, time_step+leadtimes[next_leadtime_idx], prod, amount)
                         next_leadtime_idx += 1
                     # Contabiliza os custos e estatísticas
                     total_cost += cost
@@ -344,7 +349,8 @@ class SC_Node:
                         for i in range(len(self.dests)):
                             # Se tem algum material a ser enviado
                             if amounts_to_ship[i] > 0:
-                                self.dests[i]._ship_material(time_step+leadtimes[next_leadtime_idx], prod, amounts_to_ship[i])
+                                # ALTERAÇÃO: acrescentado parâmetro do momento de envio
+                                self.dests[i]._ship_material(time_step, time_step+leadtimes[next_leadtime_idx], prod, amounts_to_ship[i])
                             next_leadtime_idx += 1
 
                         # Contabiliza os custos e estatísticas de transporte
@@ -395,21 +401,28 @@ class SC_Node:
 
         return total_cost
 
-    def _ship_material(self, time, product, amount):
-        # TODO: #21 Melhorar desempenho do material em transporte      
-        heapq.heappush(self.shipments_by_prod[product], (time, amount))
+    def _ship_material(self, dispatch_time, arrive_time, product, amount):
+        # ALTERAÇÃO: Adicionado o parâmetro dispatch_time (que representa o momento de envio do material).
+        # Obs.: o valor pode ser negativo.
+
+        # TODO: #21 Melhorar desempenho do material em transporte
+
+        # ALTERAÇÃO: agora o heap é ordenado pelo momento que o material foi despachado
+        heapq.heappush(self.shipments_by_prod[product], (dispatch_time, arrive_time, amount))
 
     def reset(self):
         self.stock = self.initial_stock
         self.shipments_by_prod = [[] for i in range(self.num_products)]
+        # ALTERAÇÃO: Acrescentado parâmetro de momento de envio na chamada do método _ship_material (considera
+        #            que material foi enviado e o lead time foi o médio)
         if self.initial_supply:
             for prod in range(self.num_products):
                 for i in range(len(self.initial_supply[prod])):                
-                    self._ship_material(i+1, prod, self.initial_supply[prod][i])
+                    self._ship_material(i+1-self.avg_leadtime, i+1, prod, self.initial_supply[prod][i])
         if self.initial_shipments:
             for prod in range(self.num_products):
                 for i in range(len(self.initial_shipments[prod])):                
-                    self._ship_material(i+1, prod, self.initial_shipments[prod][i])
+                    self._ship_material(i+1-self.avg_leadtime, i+1, prod, self.initial_shipments[prod][i])
         
         # Atributos estatísticos para depuração
         if self.build_info:
@@ -425,7 +438,9 @@ class SC_Node:
     def is_last_level(self):
         return self.last_level
 
-    def build_observation(self, shipments_range):
+    def build_observation(self, time_step):
+        # ALTERAÇÃO: retirado parâmetro shipments_range e acrescentado time_step (agora o material em transporte 
+        #            aparece no estado de acordo com o momento de envio)
         
         # a primeira informação é o estoque atual.
         current_stock = self.stock
@@ -436,29 +451,18 @@ class SC_Node:
         for prod, shipments in enumerate(self.shipments_by_prod):
             # Se não tem nenhum carregamento pra chegar, cria os carregamentos vazios
             if not shipments:
-                obs += [0]*(shipments_range[1]-shipments_range[0]+1)
+                obs += [0]*(self.max_leadtime)
             else:
-                # os carregamentos são dados pelo total de material em transporte em cada período.
-                # exceto o último, que é dado pelo material em transporte daquele período em diante
+                # os carregamentos são dados pelo total de material em transporte despachado em cada período.
 
-                # Vamos primeiro tratar os períodos antes do último do range
                 ship_idx = 0
-                for time_step in range(shipments_range[0], shipments_range[1]):
+                for t in range(time_step-self.max_leadtime+1, time_step+1):
                     obs.append(0)
-                    while ship_idx < len(shipments) and shipments[ship_idx][0] == time_step:
+                    while ship_idx < len(shipments) and shipments[ship_idx][0] == t:
                         obs[-1] += shipments[ship_idx][1]
                         ship_idx += 1
                     # normaliza a quantidade de material em transporte
                     obs[-1] /= self.max_ship[prod]
-                
-                # Agora vamos tratar o último período do range
-                time_step = shipments_range[1]
-                obs.append(0)
-                while ship_idx < len(shipments):
-                    obs[-1] += shipments[ship_idx][1]
-                    ship_idx += 1
-                # normaliza a quantidade de material em transporte
-                obs[-1] /= self.max_ship[prod]*(self.max_leadtime-(shipments_range[1]-shipments_range[0]))
 
         return obs
 
@@ -470,7 +474,7 @@ class SC_Node:
         for shipments in self.shipments_by_prod:
             desc += f'['
             for i in range(len(shipments)):
-                desc += f'{np.round(shipments[i][0])} {np.round(shipments[i][1],1)}, '
+                desc += f'{shipments[i][0]}-{shipments[i][1]} {np.round(shipments[i][2],1)}, '
             desc += f']'
         desc += f') [{np.round(self.stock,1)}] '
         return desc
@@ -538,6 +542,7 @@ class SupplyChainEnv(gym.Env):
                                exceeded_process_capacity_cost=exceeded_process_capacity_cost,
                                exceeded_ship_capacity_cost=exceeded_ship_capacity_cost,
                                unmet_demand_cost=unmet_demand_cost,
+                               avg_leadtime=self.avg_leadtime,
                                max_leadtime=self.max_leadtime,
                                build_info=self.build_info)                
                 nodes_dict[node_name] = node
@@ -614,10 +619,12 @@ class SupplyChainEnv(gym.Env):
         # - len(self.nodes)*1               : 
         # - 
         # - 1                               : 
+        # ALTERAÇÃO: O estado agora tem informações de transporte de acordo com o momento que o material foi despachado.
+        #            Isto aumentou o tamanho do estado, pois agora não há mais soma de material de períodos diferentes.
         obs_space_size = (len(self.last_level_nodes)*num_products       # Demandas, sendo 1 para cada varejista e produto
                           + len(self.nodes)*num_products                # Níveis de estoque, 1 para cada nó da cadeia e produto.
-                          + len(self.nodes)*num_products*(avg_leadtime) # Materiais em transporte; por produto, sendo l o leadtime médio, considera, para cada nó
-                                                                        # a quantidade de material em transporte no período t+1, t+2, ... t+(l-1), sum_{i>=l}t+i  
+                          + len(self.nodes)*num_products*(max_leadtime) # Materiais em transporte; por produto, sendo l o leadtime máximo, considera, para cada nó
+                                                                        # a quantidade de material em transporte que foi despachada nos períodos t, t-1, t-2,...,t-l+1
                           + 1)                                          # número de períodos para terminar o episódio
 
         # O action_space é tratado como de [0,1] no código, então quando a ação é recebida o valor
@@ -767,19 +774,20 @@ class SupplyChainEnv(gym.Env):
                 - O quanto de material está chegando nos períodos seguintes.
         """ 
         # Primeiro guardamos as demandas (normalizadas)
+        # ALTERAÇÃO: Demandas agora são do período atual e não mais do próximo período
         if not self.demand_config_by_product:
-            demands_obs = (self.customer_demands[self.time_step,:].flatten() - self.demand_range[0])/(self.demand_range_value)
+            demands_obs = (self.customer_demands[self.time_step-1,:].flatten() - self.demand_range[0])/(self.demand_range_value)
         else:
             demands_obs = []
             for n in range(len(self.last_level_nodes)):
-                demands_obs.append([(self.customer_demands[prod][self.time_step,n].flatten() - self.demand_range[prod][0])/(self.demand_range_value[prod])
+                demands_obs.append([(self.customer_demands[prod][self.time_step-1,n].flatten() - self.demand_range[prod][0])/(self.demand_range_value[prod])
                                    for prod in range(self.num_products)])
             demands_obs = np.array(demands_obs).flatten()
             
         # Depois pegamos os dados de cada nó
         nodes_obs = []
         for node in self.nodes:
-            nodes_obs += node.build_observation((self.time_step+1, self.time_step+self.avg_leadtime))        
+            nodes_obs += node.build_observation(self.time_step)
 
         # A observação é concatenação das demandas, com os dados nos nós mais quantos períodos 
         # faltam para terminar o episódio (normalizado)

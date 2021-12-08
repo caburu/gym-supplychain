@@ -75,7 +75,7 @@ class TestSupplyChainEnv:
         
         env.step(supply_action) # timestep=1
 
-        assert env.nodes[0].shipments_by_prod[0] == [(3,50)]
+        assert env.nodes[0].shipments_by_prod[0] == [(1,3,50)]
         for node in env.nodes[1:]:
             assert len(node.shipments_by_prod[0]) == 0
         for node in env.nodes[:-1]:
@@ -88,40 +88,40 @@ class TestSupplyChainEnv:
         
         env.step(send_all_action) # timestep=2
 
-        assert env.nodes[0].shipments_by_prod[0] == [(3,50), (4,50)]
-        assert env.nodes[1].shipments_by_prod[0] == [(4,10)]
-        assert env.nodes[2].shipments_by_prod[0] == [(4,5)]
-        assert env.nodes[3].shipments_by_prod[0] == [(4,10)]
+        assert env.nodes[0].shipments_by_prod[0] == [(1,3,50), (2,4,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(2,4,10)]
+        assert env.nodes[2].shipments_by_prod[0] == [(2,4,5)]
+        assert env.nodes[3].shipments_by_prod[0] == [(2,4,10)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10 - sum(env.customer_demands[:env.time_step]))
         
         env.step(send_all_action) # timestep=3
         
-        assert env.nodes[0].shipments_by_prod[0] == [(4,50), (5,50)]
-        assert env.nodes[1].shipments_by_prod[0] == [(4,10), (5,50)]
-        assert env.nodes[2].shipments_by_prod[0] == [(4, 5)]
-        assert env.nodes[3].shipments_by_prod[0] == [(4,10)]
+        assert env.nodes[0].shipments_by_prod[0] == [(2,4,50), (3,5,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(2,4,10), (3,5,50)]
+        assert env.nodes[2].shipments_by_prod[0] == [(2,4, 5)]
+        assert env.nodes[3].shipments_by_prod[0] == [(2,4,10)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10 - sum(env.customer_demands[:env.time_step]))
         
         env.step(send_all_action) # timestep=4
         
-        assert env.nodes[0].shipments_by_prod[0] == [(5,50), (6,50)]
-        assert env.nodes[1].shipments_by_prod[0] == [(5,50), (6,50)]
-        assert env.nodes[2].shipments_by_prod[0] == [(6, 5)]
-        assert env.nodes[3].shipments_by_prod[0] == [(6, 5)]
+        assert env.nodes[0].shipments_by_prod[0] == [(3,5,50), (4,6,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(3,5,50), (4,6,50)]
+        assert env.nodes[2].shipments_by_prod[0] == [(4,6, 5)]
+        assert env.nodes[3].shipments_by_prod[0] == [(4,6, 5)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10+10 - sum(env.customer_demands[:env.time_step]))
         
         env.step(send_all_action) # timestep=5
         
-        assert env.nodes[0].shipments_by_prod[0] == [(6,50), (7,50)]
-        assert env.nodes[1].shipments_by_prod[0] == [(6,50), (7,50)]
-        assert env.nodes[2].shipments_by_prod[0] == [(6, 5), (7,25)]
-        assert env.nodes[3].shipments_by_prod[0] == [(6, 5)]
+        assert env.nodes[0].shipments_by_prod[0] == [(4,6,50), (5,7,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(4,6,50), (5,7,50)]
+        assert env.nodes[2].shipments_by_prod[0] == [(4,6, 5), (5,7,25)]
+        assert env.nodes[3].shipments_by_prod[0] == [(4,6, 5)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10+10 - sum(env.customer_demands[:env.time_step]))
@@ -153,7 +153,7 @@ class TestSupplyChainEnv:
         
         env.step(supply_action) # timestep=1
 
-        assert env.nodes[0].shipments_by_prod[0] == [(4,50)]
+        assert env.nodes[0].shipments_by_prod[0] == [(1,4,50)]
         for node in env.nodes[1:]:
             assert len(node.shipments_by_prod[0]) == 0
         for node in env.nodes[:-1]:
@@ -166,40 +166,40 @@ class TestSupplyChainEnv:
         
         env.step(send_all_action) # timestep=2
 
-        assert env.nodes[0].shipments_by_prod[0] == [(4,50), (5,50)]
-        assert env.nodes[1].shipments_by_prod[0] == [(4,10)]
-        assert env.nodes[2].shipments_by_prod[0] == [(3, 5)]
-        assert env.nodes[3].shipments_by_prod[0] == [(4,10)]
+        assert env.nodes[0].shipments_by_prod[0] == [(1,4,50), (2,5,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(2,4,10)]
+        assert env.nodes[2].shipments_by_prod[0] == [(2,3, 5)]
+        assert env.nodes[3].shipments_by_prod[0] == [(2,4,10)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10 - sum(env.customer_demands[:env.time_step]))
         
         env.step(send_all_action) # timestep=3
         
-        assert env.nodes[0].shipments_by_prod[0] == [(4,50), (5,50), (5,50)]
-        assert env.nodes[1].shipments_by_prod[0] == [(4,10)]
+        assert env.nodes[0].shipments_by_prod[0] == [(1,4,50), (2,5,50), (3,5,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(2,4,10)]
         assert env.nodes[2].shipments_by_prod[0] == []
-        assert env.nodes[3].shipments_by_prod[0] == [(4,10), (6,5)]
+        assert env.nodes[3].shipments_by_prod[0] == [(2,4,10), (3,6,5)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10 - sum(env.customer_demands[:env.time_step]))
         
         env.step(send_all_action) # timestep=4
         
-        assert env.nodes[0].shipments_by_prod[0] == [(5,50), (5,50), (6,50)]
-        assert env.nodes[1].shipments_by_prod[0] == [(6,50)]
-        assert env.nodes[2].shipments_by_prod[0] == [(6, 5)]
-        assert env.nodes[3].shipments_by_prod[0] == [(6, 5)]
+        assert env.nodes[0].shipments_by_prod[0] == [(2,5,50), (3,5,50), (4,6,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(4,6,50)]
+        assert env.nodes[2].shipments_by_prod[0] == [(4,6, 5)]
+        assert env.nodes[3].shipments_by_prod[0] == [(3,6, 5)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10+10 - sum(env.customer_demands[:env.time_step]))
         
         env.step(send_all_action) # timestep=5
         
-        assert env.nodes[0].shipments_by_prod[0] == [(6,50), (6,50)]
-        assert env.nodes[1].shipments_by_prod[0] == [(6,50), (6,100)]
-        assert env.nodes[2].shipments_by_prod[0] == [(6, 5),]
-        assert env.nodes[3].shipments_by_prod[0] == [(6, 5)]
+        assert env.nodes[0].shipments_by_prod[0] == [(4,6,50), (5,6,50)]
+        assert env.nodes[1].shipments_by_prod[0] == [(4,6,50), (5,6,100)]
+        assert env.nodes[2].shipments_by_prod[0] == [(4,6, 5),]
+        assert env.nodes[3].shipments_by_prod[0] == [(3,6, 5)]
         for node in env.nodes[:-1]:
             assert node.stock == 0
         assert env.nodes[-1].stock == max(0, 10+10 - sum(env.customer_demands[:env.time_step]))
