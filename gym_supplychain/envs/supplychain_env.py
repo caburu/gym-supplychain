@@ -642,30 +642,44 @@ class SupplyChainEnv(gym.Env):
         self.current_reward = 0
         self.episode_rewards = 0
 
-        # Se a configuração de demandas é a mesma pra todos os produtos
+
+        # ALTERAÇÃO: O vetor de demanda guardava na posição t, a demanda para o período t+1. Agora ela guarda a demanda
+        #            do próprio período t. Dessa forma, foi necessário incluir demandas zero para o período t=0.
+        #            A última demanda gerada se torna inútil, mas foi mantida para que os experimentos anteriores continuassem
+        #            compatíveis.
+
+        # Se a configuração de demandas é a mesma pra todos os produtos        
         # Obs: o formato dos dados de demanda fica diferente nos dois casos, isso foi feito para
         #      manter compatibilidade com experimentos anteriores
         if not self.demand_config_by_product:
             
             # gerando as demandas de todo o episódio (por período/varejista/produto)
-            self.customer_demands = generate_demand(self.rand_generator, 
+            
+            self.customer_demands = np.concatenate((
+                                       np.zeros((1, len(self.last_level_nodes), self.num_products)),
+                                       generate_demand(self.rand_generator, 
                                                     (self.total_time_steps+1, len(self.last_level_nodes), self.num_products), 
                                                     self.total_time_steps, self.demand_range[0], self.demand_range[1],
                                                     std=self.demand_std, sen_peaks=self.demand_sen_peaks,
                                                     minavg=self.minavg_demand, maxavg=self.maxavg_demand,
                                                     perturb_norm=self.demand_perturb_norm)
+                                       ))
         else: # se a configuração de demanda é separada por produto
             
             # gerando as demandas de todo o episódio (por produto/período/varejista)
             self.customer_demands = []
             for prod in range(self.num_products):
                 self.customer_demands.append(
-                    generate_demand(self.rand_generator, 
-                                    (self.total_time_steps+1, len(self.last_level_nodes)),
-                                    self.total_time_steps, self.demand_range[prod][0], self.demand_range[prod][1],
-                                    std=self.demand_std[prod], sen_peaks=self.demand_sen_peaks[prod],
-                                    minavg=self.minavg_demand[prod], maxavg=self.maxavg_demand[prod],
-                                    perturb_norm=self.demand_perturb_norm[prod]))
+                        np.concatenate((
+                                    np.zeros((1, len(self.last_level_nodes))),
+                                    generate_demand(self.rand_generator, 
+                                        (self.total_time_steps+1, len(self.last_level_nodes)),
+                                        self.total_time_steps, self.demand_range[prod][0], self.demand_range[prod][1],
+                                        std=self.demand_std[prod], sen_peaks=self.demand_sen_peaks[prod],
+                                        minavg=self.minavg_demand[prod], maxavg=self.maxavg_demand[prod],
+                                        perturb_norm=self.demand_perturb_norm[prod])
+                            ))
+                    )
 
         
         if self.stochastic_leadtimes:
@@ -731,10 +745,11 @@ class SupplyChainEnv(gym.Env):
                 leadtimes_to_apply = node.num_expected_actions()*[self.avg_leadtime]            
             
             if node.last_level:
+                # ALTERAÇÃO: A demanda do período t agora está na posição t. Antes estava na posição t-1
                 if not self.demand_config_by_product:
-                    demand = self.customer_demands[self.time_step-1, next_customer]
+                    demand = self.customer_demands[self.time_step, next_customer]
                 else:
-                    demand = [self.customer_demands[prod][self.time_step-1, next_customer] for prod in range(self.num_products)]
+                    demand = [self.customer_demands[prod][self.time_step, next_customer] for prod in range(self.num_products)]
                 next_customer += 1
             else:
                 demand = None
@@ -774,13 +789,14 @@ class SupplyChainEnv(gym.Env):
                 - O quanto de material está chegando nos períodos seguintes.
         """ 
         # Primeiro guardamos as demandas (normalizadas)
-        # ALTERAÇÃO: Demandas agora são do período atual e não mais do próximo período
+        # ALTERAÇÃO: Apesar do código aqui não ser alterado, a posição no vetor do período atual indica agora as demandas realizadas 
+        #            no próprio período atual, e não mais as demandas para o próximo período.
         if not self.demand_config_by_product:
-            demands_obs = (self.customer_demands[self.time_step-1,:].flatten() - self.demand_range[0])/(self.demand_range_value)
+            demands_obs = (self.customer_demands[self.time_step,:].flatten() - self.demand_range[0])/(self.demand_range_value)
         else:
             demands_obs = []
             for n in range(len(self.last_level_nodes)):
-                demands_obs.append([(self.customer_demands[prod][self.time_step-1,n].flatten() - self.demand_range[prod][0])/(self.demand_range_value[prod])
+                demands_obs.append([(self.customer_demands[prod][self.time_step,n].flatten() - self.demand_range[prod][0])/(self.demand_range_value[prod])
                                    for prod in range(self.num_products)])
             demands_obs = np.array(demands_obs).flatten()
             
@@ -808,10 +824,11 @@ class SupplyChainEnv(gym.Env):
         for node in self.nodes:
             node.render()
             print()
+        # ALTERAÇÃO: Agora são exibidas as demandas atuais e não mais as demandas do próximo período
         if not self.demand_config_by_product:
-            print('Next demands  :', self.customer_demands[self.time_step,:])
+            print('Current demands  :', self.customer_demands[self.time_step,:])
         else:
-            print('Next demands (by prod) :', [self.customer_demands[prod,self.time_step,:] for prod in range(self.num_products)])
+            print('Current demands (by prod) :', [self.customer_demands[prod,self.time_step,:] for prod in range(self.num_products)])
         print('Current state :', self.current_state)
         print('Current reward:', round(self.current_reward,3))
         print('='*30)
