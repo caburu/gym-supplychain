@@ -655,11 +655,11 @@ class SupplyChainEnv(gym.Env):
         # - 
         # - 1                               : 
         # ALTERAÇÃO: O estado agora tem informações de transporte de acordo com o momento que o material foi despachado.
-        #            Isto aumentou o tamanho do estado, pois agora não há mais soma de material de períodos diferentes.
         obs_space_size = (len(self.last_level_nodes)*num_products       # Demandas, sendo 1 para cada varejista e produto
                           + len(self.nodes)*num_products                # Níveis de estoque, 1 para cada nó da cadeia e produto.
-                          + len(self.nodes)*num_products*(max_leadtime) # Materiais em transporte; por produto, sendo l o leadtime máximo, considera, para cada nó
-                                                                        # a quantidade de material em transporte que foi despachada nos períodos t, t-1, t-2,...,t-l+1
+                          + len(self.nodes)*num_products*(max_leadtime-shipments_group_size+1) # Materiais em transporte; por produto, 
+                                                                        # sendo l o leadtime máximo, considera, para cada nó a quantidade 
+                                                                        # de material em transporte que foi despachada nos períodos t, t-1, t-2,...,t-l+1
                           + 1)                                          # número de períodos para terminar o episódio
 
         # O action_space é tratado como de [0,1] no código, então quando a ação é recebida o valor
