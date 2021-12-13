@@ -79,7 +79,8 @@ class SupplyChainMultiProduct(SupplyChainEnv):
                  max_leadtime=2,
                  total_time_steps=360, 
                  seed=None,
-                 build_info=False):                
+                 build_info=False, 
+                 shipments_group_size=1):                
         
         if not stock_capacities:
             stock_capacities=[[1600]*num_products,[1800]*num_products,
@@ -111,7 +112,7 @@ class SupplyChainMultiProduct(SupplyChainEnv):
                          demand_std=demand_std, demand_sen_peaks=demand_sen_peaks, avg_demand_range=avg_demand_range,
                          total_time_steps=total_time_steps, 
                          stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime, 
-                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm)
+                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm, shipments_group_size=shipments_group_size)
 
 
 class SupplyChainMultiProduct_IncreasingCosts(SupplyChainMultiProduct):
@@ -131,7 +132,8 @@ class SupplyChainMultiProduct_IncreasingCosts(SupplyChainMultiProduct):
                  max_leadtime=2,
                  total_time_steps=360, 
                  seed=None,
-                 build_info=False):
+                 build_info=False, 
+                 shipments_group_size=1):
                 
         supply_costs=[[6*(i+1) for i in range(num_products)],
                       [4*(i+1) for i in range(num_products)]]
@@ -152,7 +154,7 @@ class SupplyChainMultiProduct_IncreasingCosts(SupplyChainMultiProduct):
                          demand_std=demand_std, demand_sen_peaks=demand_sen_peaks, avg_demand_range=avg_demand_range,
                          total_time_steps=total_time_steps, 
                          stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime, 
-                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm)
+                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm, shipments_group_size=shipments_group_size)
 
 class SupplyChainMultiProduct_DemConfigByProd(SupplyChainMultiProduct):
     def __init__(self, num_products=2,
@@ -168,7 +170,8 @@ class SupplyChainMultiProduct_DemConfigByProd(SupplyChainMultiProduct):
                  max_leadtime=2,
                  total_time_steps=360, 
                  seed=None,
-                 build_info=False):
+                 build_info=False, 
+                 shipments_group_size=1):
         
         # Classe tratada para no máximo 3 produtos
         assert 1 <= num_products <= 3
@@ -206,7 +209,7 @@ class SupplyChainMultiProduct_DemConfigByProd(SupplyChainMultiProduct):
                          demand_std=demand_stds, demand_sen_peaks=demand_sen_peaks, avg_demand_range=avg_demand_range,
                          total_time_steps=total_time_steps, 
                          stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime, 
-                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm)
+                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm, shipments_group_size=shipments_group_size)
 
 class SupplyChainMultiProduct_DemConfigByProd_IncCosts(SupplyChainMultiProduct):
     def __init__(self, num_products=2,
@@ -222,7 +225,8 @@ class SupplyChainMultiProduct_DemConfigByProd_IncCosts(SupplyChainMultiProduct):
                  max_leadtime=2,
                  total_time_steps=360, 
                  seed=None,
-                 build_info=False):
+                 build_info=False, 
+                 shipments_group_size=1):
         
         # Classe tratada para no máximo 3 produtos
         assert 1 <= num_products <= 3
@@ -271,4 +275,4 @@ class SupplyChainMultiProduct_DemConfigByProd_IncCosts(SupplyChainMultiProduct):
                          demand_std=demand_stds, demand_sen_peaks=demand_sen_peaks, avg_demand_range=avg_demand_range,
                          total_time_steps=total_time_steps, 
                          stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime, 
-                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm)
+                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm, shipments_group_size=shipments_group_size)

@@ -63,7 +63,8 @@ class SupplyChainNPerStage(SupplyChainEnv):
                  max_leadtime=2,
                  total_time_steps=360, 
                  seed=None,
-                 build_info=False):                
+                 build_info=False, 
+                 shipments_group_size=1):                
         
         if isinstance(nodes_per_echelon, int):
             nodes_per_echelon = [nodes_per_echelon]*4
@@ -128,4 +129,4 @@ class SupplyChainNPerStage(SupplyChainEnv):
                          demand_std=demand_std, demand_sen_peaks=demand_sen_peaks, avg_demand_range=avg_demand_range,
                          total_time_steps=total_time_steps, 
                          stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime, 
-                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm)
+                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm, shipments_group_size=shipments_group_size)

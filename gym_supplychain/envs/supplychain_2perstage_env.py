@@ -21,7 +21,7 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                  exceeded_ship_capacity_cost=10,
                  demand_range=(10,20), demand_std=None, demand_sen_peaks=None, avg_demand_range=None,
                  stochastic_leadtimes=False, avg_leadtime=2, max_leadtime=2, 
-                 total_time_steps=360, seed=None, build_info=False, demand_perturb_norm=False):
+                 total_time_steps=360, seed=None, build_info=False, demand_perturb_norm=False, shipments_group_size=1):
 
         if not initial_stocks: # A posição zero é do primeiro fornecedor, e assim por diante
             initial_stocks = [0]*(8)
@@ -61,7 +61,7 @@ class SupplyChain2perStageEnv(SupplyChainEnv):
                          demand_std=demand_std, demand_sen_peaks=demand_sen_peaks, avg_demand_range=avg_demand_range,
                          total_time_steps=total_time_steps, 
                          stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime, 
-                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm)
+                         seed=seed, build_info=build_info, demand_perturb_norm=demand_perturb_norm, shipments_group_size=shipments_group_size)
 
 
 class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
@@ -77,7 +77,7 @@ class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
                          demand_range=(0,400), demand_std=10, demand_sen_peaks=4, avg_demand_range=(150,250),
                          stochastic_leadtimes=False, avg_leadtime=2, max_leadtime=2,
                          total_time_steps=360, seed=None, build_info=False, check_actions=False,
-                         demand_perturb_norm=True):
+                         demand_perturb_norm=True, shipments_group_size=1):
 
         super().__init__(num_products=num_products, initial_stocks=initial_stocks, initial_supply=initial_supply, 
                          initial_shipments=initial_shipments,
@@ -94,7 +94,7 @@ class SupplyChain2perStageSeasonalEnv(SupplyChain2perStageEnv):
                          avg_demand_range=avg_demand_range,
                          stochastic_leadtimes=stochastic_leadtimes, avg_leadtime=avg_leadtime, max_leadtime=max_leadtime, 
                          total_time_steps=total_time_steps, seed=seed,
-                         build_info=build_info, demand_perturb_norm=demand_perturb_norm)
+                         build_info=build_info, demand_perturb_norm=demand_perturb_norm, shipments_group_size=shipments_group_size)
 
 if __name__ == '__main__':
 

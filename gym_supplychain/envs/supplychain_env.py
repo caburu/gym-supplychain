@@ -116,12 +116,14 @@ class SC_Node:
         - O número total de valores de ação esperados.
         - Uma lista de destinos.
         - Uma fila de material para chegar de cada produto.
+        @param shipments_group_size: os envios de material mais antigos podem ser agrupados em um único envio. 
+                                     Parâmetro deve estar entre 1 e self.max_leadtime.
     """
     def __init__(self, label, num_products=1, initial_stock=0, initial_supply=None, initial_shipments=None, 
                  stock_capacity=0, supply_capacity=0, processing_capacity=0, processing_ratio=0,
                  last_level=False, stock_cost=0, supply_cost=0, processing_cost=0, 
                  exceeded_stock_capacity_cost=1, exceeded_process_capacity_cost=1, exceeded_ship_capacity_cost=1,
-                 unmet_demand_cost=1, avg_leadtime=2, max_leadtime=4, build_info=False):
+                 unmet_demand_cost=1, avg_leadtime=2, max_leadtime=4, build_info=False, shipments_group_size=1):
         # ALTERAÇÃO: Adicionado parâmetro de leadtime médio
 
         self.build_info = build_info
@@ -177,6 +179,9 @@ class SC_Node:
         self.shipments_by_prod = [[] for i in range(self.num_products)]
         self.avg_leadtime = avg_leadtime
         self.max_leadtime = max_leadtime
+        # ALTERAÇÃO: acrescentado parâmetro shipments_group_size
+        self.shipments_group_size = shipments_group_size
+
 
     def _treat_int_or_list_param(self, param, default_value=0):
         # se foi passada uma lista, ou ela deve ser vazia ou ter um valor por produto
@@ -439,6 +444,10 @@ class SC_Node:
         return self.last_level
 
     def build_observation(self, time_step):
+        """ 
+        Cria uma observação do nó.
+        @param time_step: período atual    
+        """
         # ALTERAÇÃO: retirado parâmetro shipments_range e acrescentado time_step (agora o material em transporte 
         #            aparece no estado de acordo com o momento de envio)
         
@@ -454,15 +463,32 @@ class SC_Node:
                 obs += [0]*(self.max_leadtime)
             else:
                 # os carregamentos são dados pelo total de material em transporte despachado em cada período.
+                # Os carregamentos mais antigos podem ser agrupados de acordo com o atributo shipments_group_size
 
+                # inicializa posição na lista de envios
                 ship_idx = 0
-                for t in range(time_step-self.max_leadtime+1, time_step+1):
+                # inicializa período mais antigo de envio
+                t = time_step-self.max_leadtime+1
+                # tamanho do primeiro grupo é dado pelo atributo shipments_group_size. Os demais valores não são agrupados.
+                group_size = self.shipments_group_size
+                
+                # percorre os possíveis períodos de envio
+                while t < time_step+1:
+                    # adiciona um campo na observação
                     obs.append(0)
-                    while ship_idx < len(shipments) and shipments[ship_idx][0] == t:
+                    # enquanto ainda existem envios a serem tratados e os envios devem fazer parte do campo atual
+                    while ship_idx < len(shipments) and shipments[ship_idx][0] in range(t, t+group_size):
+                        # adiciona a quantidade de material do envio em questão
                         obs[-1] += shipments[ship_idx][1]
+                        # passa para o próximo envio
                         ship_idx += 1
                     # normaliza a quantidade de material em transporte
-                    obs[-1] /= self.max_ship[prod]
+                    obs[-1] /= self.max_ship[prod]*group_size
+
+                    # o próximo período a ser avaliado será o posterior ao último grupo tratado
+                    t += group_size
+                    # apenas os envios mais antigos são agrupados, os demais valores não são agregados
+                    group_size = 1
 
         return obs
 
@@ -490,7 +516,7 @@ class SupplyChainEnv(gym.Env):
                  demand_range=(10,20), demand_std=None, demand_sen_peaks=None, avg_demand_range=None, 
                  processing_ratio=3, stochastic_leadtimes=False, avg_leadtime=2, max_leadtime=2,
                  total_time_steps=360, seed=None,
-                 build_info=False, demand_perturb_norm=False):
+                 build_info=False, demand_perturb_norm=False, shipments_group_size=1):
         """
             :param stochastic_leadtimes: (bool) indica se os leadtimes serão constantes ou estocásticos.
             :param avg_leadtime: (int) valor constante do leadtime ou a média dos leadtimes se eles forem estocásticos.
@@ -498,6 +524,11 @@ class SupplyChainEnv(gym.Env):
             :param max_leadtime: (int) no caso de leadtimes estocásticos indica o limite de leatime 
                                  (valores maiores que o limite são igualados ao limite). Cuidado: isso afeta a média real.
                                  No caso de leadtime constante, só faz sentido que seja igual ao leadtime constante.
+            :param total_time_steps: (int) número de passos de tempo que o ambiente simulará.
+            :param seed: (int) valor para inicializar o gerador de números aleatórios.
+            :param build_info: (bool) indica se a informação de debug deve ser construída durante a simulação.
+            :param demand_perturb_norm: (bool) indica se a demanda deve ser perturbada com uma distribuição normal.
+            :param shipments_group_size: (int) indica se os materiais em transporte, enviados há mais tempo, devem ser agrupados no estado.
         """
         
         def create_nodes(nodes_info):
@@ -544,7 +575,8 @@ class SupplyChainEnv(gym.Env):
                                unmet_demand_cost=unmet_demand_cost,
                                avg_leadtime=self.avg_leadtime,
                                max_leadtime=self.max_leadtime,
-                               build_info=self.build_info)                
+                               build_info=self.build_info,
+                               shipments_group_size=shipments_group_size)                
                 nodes_dict[node_name] = node
                 self.nodes.append(node)
                 if node.is_last_level():
@@ -563,6 +595,9 @@ class SupplyChainEnv(gym.Env):
         self.stochastic_leadtimes = stochastic_leadtimes
         self.avg_leadtime = avg_leadtime
         self.max_leadtime = max_leadtime
+        
+        # O agrupamento dos materiais em transporte enviados há mais tempo deve ter tamanho entre 1 (não agrupado) e max_leadtime (um único grupo).
+        assert 1 <= shipments_group_size <= self.max_leadtime
                     
         create_nodes(nodes_info)
         self.total_time_steps = total_time_steps                
