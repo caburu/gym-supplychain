@@ -460,7 +460,7 @@ class SC_Node:
         for prod, shipments in enumerate(self.shipments_by_prod):
             # Se não tem nenhum carregamento pra chegar, cria os carregamentos vazios
             if not shipments:
-                obs += [0]*(self.max_leadtime)
+                obs += [0]*(self.max_leadtime-group_size+1)
             else:
                 # os carregamentos são dados pelo total de material em transporte despachado em cada período.
                 # Os carregamentos mais antigos podem ser agrupados de acordo com o atributo shipments_group_size
@@ -476,12 +476,14 @@ class SC_Node:
                 while t < time_step+1:
                     # adiciona um campo na observação
                     obs.append(0)
-                    # enquanto ainda existem envios a serem tratados e os envios devem fazer parte do campo atual
-                    while ship_idx < len(shipments) and shipments[ship_idx][1] in range(t, t+group_size):
-                        # adiciona a quantidade de material do envio em questão
-                        obs[-1] += shipments[ship_idx][2]
-                        # passa para o próximo envio
-                        ship_idx += 1
+                    # para todos os envios existentes
+                    for ship in shipments:
+                        # se o envio foi feito entre o período t e t+group_size-1
+                        if ship[1] in range(t, t+group_size):
+                            # adiciona a quantidade de material do envio em questão
+                            obs[-1] += shipments[ship_idx][2]
+                            # passa para o próximo envio
+                            ship_idx += 1
                     # normaliza a quantidade de material em transporte
                     obs[-1] /= self.max_ship[prod]*group_size
 
