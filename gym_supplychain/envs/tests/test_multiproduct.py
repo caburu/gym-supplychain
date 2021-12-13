@@ -55,7 +55,7 @@ class TestMultiproduct():
         env.seed(0)
         env.reset() # timestep=0
 
-        assert np.all(env.customer_demands.flatten() == [4, 5, 0, 3, 3, 3, 1, 3, 5, 2, 4, 0])
+        assert np.all(env.customer_demands.flatten() == [0, 0, 4, 5, 0, 3, 3, 3, 1, 3, 5, 2, 4, 0])
 
         for node in env.nodes:
             assert node.shipments_by_prod == [[], []]
@@ -66,7 +66,7 @@ class TestMultiproduct():
         
         env.step(supply_action) # timestep=1
 
-        assert env.nodes[0].shipments_by_prod == [[(3,50.0)],[(3,50.0)]]
+        assert env.nodes[0].shipments_by_prod == [[(3,1,50.0)],[(3,1,50.0)]]
         for node in env.nodes[1:]:
             assert node.shipments_by_prod == [[], []]
         for node in env.nodes[:-1]:
@@ -79,40 +79,40 @@ class TestMultiproduct():
         
         env.step(send_all_action) # timestep=2
 
-        assert env.nodes[0].shipments_by_prod == [[(3,50), (4,50)],[(3,50), (4,50)]]
-        assert env.nodes[1].shipments_by_prod == [[(4,10)],[(4,20)]]
-        assert env.nodes[2].shipments_by_prod == [[(4,5)],[(4,10)]]
-        assert env.nodes[3].shipments_by_prod == [[(4,10)],[(4,20)]]
+        assert env.nodes[0].shipments_by_prod == [[(3,1,50), (4,2,50)],[(3,1,50), (4,2,50)]]
+        assert env.nodes[1].shipments_by_prod == [[(4,2,10)],[(4,2,20)]]
+        assert env.nodes[2].shipments_by_prod == [[(4,2,5)],[(4,2,10)]]
+        assert env.nodes[3].shipments_by_prod == [[(4,2,10)],[(4,2,20)]]
         for node in env.nodes[:-1]:
             assert np.allclose(node.stock, [0.0, 0.0])
         assert np.allclose(env.nodes[-1].stock, [6,12])
         
         env.step(send_all_action) # timestep=3
         
-        assert env.nodes[0].shipments_by_prod == [[(4,50), (5,50)],[(4,50), (5,50)]]
-        assert env.nodes[1].shipments_by_prod == [[(4,10), (5,50)],[(4,20), (5,50)]]
-        assert env.nodes[2].shipments_by_prod == [[(4, 5)],[(4, 10)]]
-        assert env.nodes[3].shipments_by_prod == [[(4,10)],[(4,20)]]
+        assert env.nodes[0].shipments_by_prod == [[(4,2,50), (5,3,50)],[(4,2,50), (5,3,50)]]
+        assert env.nodes[1].shipments_by_prod == [[(4,2,10), (5,3,50)],[(4,2,20), (5,3,50)]]
+        assert env.nodes[2].shipments_by_prod == [[(4,2, 5)],[(4,2, 10)]]
+        assert env.nodes[3].shipments_by_prod == [[(4,2,10)],[(4,2,20)]]
         for node in env.nodes[:-1]:
             assert np.allclose(node.stock, [0.0, 0.0])
         assert np.allclose(env.nodes[-1].stock, [3,9])
         
         env.step(send_all_action) # timestep=4
         
-        assert env.nodes[0].shipments_by_prod == [[(5,50), (6,50)],[(5,50), (6,50)]]
-        assert env.nodes[1].shipments_by_prod == [[(5,50), (6,50)],[(5,50), (6,50)]]
-        assert env.nodes[2].shipments_by_prod == [[(6, 5)],[(6, 10)]]
-        assert env.nodes[3].shipments_by_prod == [[(6, 5)],[(6, 10)]]
+        assert env.nodes[0].shipments_by_prod == [[(5,3,50), (6,4,50)],[(5,3,50), (6,4,50)]]
+        assert env.nodes[1].shipments_by_prod == [[(5,3,50), (6,4,50)],[(5,3,50), (6,4,50)]]
+        assert env.nodes[2].shipments_by_prod == [[(6,4, 5)],[(6,4,10)]]
+        assert env.nodes[3].shipments_by_prod == [[(6,4, 5)],[(6,4,10)]]
         for node in env.nodes[:-1]:
             assert np.allclose(node.stock, [0.0, 0.0])
         assert np.allclose(env.nodes[-1].stock, [12,26])
         
         env.step(send_all_action) # timestep=5
         
-        assert env.nodes[0].shipments_by_prod == [[(6,50), (7,50)],[(6,50), (7,50)]]        
-        assert env.nodes[1].shipments_by_prod == [[(6,50), (7,50)],[(6,50), (7,50)]]
-        assert env.nodes[2].shipments_by_prod == [[(6, 5), (7,25)],[(6, 10)]]
-        assert env.nodes[3].shipments_by_prod == [[(6, 5)],[(6, 10)]]
+        assert env.nodes[0].shipments_by_prod == [[(6,4,50), (7,5,50)],[(6,4,50), (7,5,50)]]        
+        assert env.nodes[1].shipments_by_prod == [[(6,4,50), (7,5,50)],[(6,4,50), (7,5,50)]]
+        assert env.nodes[2].shipments_by_prod == [[(6,4, 5), (7,5,25)],[(6,4,10)]]
+        assert env.nodes[3].shipments_by_prod == [[(6,4, 5)],[(6,4,10)]]
         
         assert np.allclose(env.nodes[0].stock, [0.0,  0.0])
         assert np.allclose(env.nodes[1].stock, [0.0, 50.0])
@@ -202,7 +202,7 @@ class TestMultiproduct():
 
         assert np.allclose(env.nodes[0].stock, [0,70])
 
-        assert env.nodes[1].shipments_by_prod == [[(7,100)],[(7,100)]]
+        assert env.nodes[1].shipments_by_prod == [[(7,5,100)],[(7,5,100)]]
 
         assert units['unmet_dem'] == [3,0]
         assert costs['unmet_dem'] == [3*1000,0]

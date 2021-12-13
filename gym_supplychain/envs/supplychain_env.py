@@ -228,8 +228,7 @@ class SC_Node:
         arrived_material = np.zeros(self.num_products)
         # O primeiro passo é receber o material que está pra chegar
         for prod, shipments in enumerate(self.shipments_by_prod):
-            # ALTERAÇÃO: a informação de tempo de chegada agora é a segunda da tupla
-            while shipments and shipments[0][1] == time_step:
+            while shipments and shipments[0][0] == time_step:
                 _, _, amount = heapq.heappop(shipments)
                 arrived_material[prod] += amount
         
@@ -412,8 +411,9 @@ class SC_Node:
 
         # TODO: #21 Melhorar desempenho do material em transporte
 
-        # ALTERAÇÃO: agora o heap é ordenado pelo momento que o material foi despachado
-        heapq.heappush(self.shipments_by_prod[product], (dispatch_time, arrive_time, amount))
+        # ALTERAÇÃO: agora o heap tem o momento que o material foi despachado, mas precisa continuar ordenado
+        #            pelo momento que o material vai chegar
+        heapq.heappush(self.shipments_by_prod[product], (arrive_time, dispatch_time, amount))
 
     def reset(self):
         self.stock = self.initial_stock
@@ -477,9 +477,9 @@ class SC_Node:
                     # adiciona um campo na observação
                     obs.append(0)
                     # enquanto ainda existem envios a serem tratados e os envios devem fazer parte do campo atual
-                    while ship_idx < len(shipments) and shipments[ship_idx][0] in range(t, t+group_size):
+                    while ship_idx < len(shipments) and shipments[ship_idx][1] in range(t, t+group_size):
                         # adiciona a quantidade de material do envio em questão
-                        obs[-1] += shipments[ship_idx][1]
+                        obs[-1] += shipments[ship_idx][2]
                         # passa para o próximo envio
                         ship_idx += 1
                     # normaliza a quantidade de material em transporte

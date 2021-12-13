@@ -34,16 +34,20 @@ class TestSupplyChain2perStageEnv:
         obs = env.reset() # timestep=0
         rewards = 0
 
-        assert np.allclose(obs, [ 0.  , -1.  , -1.  ,  0.  ,  0.  , -1.  , -0.2 , -0.2 , -1.  ,
+        # assert np.allclose(obs, [ 0.  , -1.  , -1.  ,  0.  ,  0.  , -1.  , -0.2 , -0.2 , -1.  ,
+        #                          -0.76, -0.76, -1.  , -0.76, -0.76, -1.  , -0.92, -0.92, -1.  ,
+        #                          -0.92, -0.92, -1.  , -0.92, -0.92, -1.  , -0.92, -0.92,  1.  ])
+
+        assert np.allclose(obs, [-1.  , -1.  , -1.  ,  0.  ,  0.  , -1.  , -0.2 , -0.2 , -1.  ,
                                  -0.76, -0.76, -1.  , -0.76, -0.76, -1.  , -0.92, -0.92, -1.  ,
                                  -0.92, -0.92, -1.  , -0.92, -0.92, -1.  , -0.92, -0.92,  1.  ])
 
-        assert np.allclose(env.customer_demands.flatten(), [15, 10, 13, 13, 17, 19, 13, 15, 12, 14, 17, 16])
+        assert np.allclose(env.customer_demands.flatten(), [0, 0, 15, 10, 13, 13, 17, 19, 13, 15, 12, 14, 17, 16])
 
         for node in env.nodes[:4]:
-            assert node.shipments_by_prod[0] == [(1,60), (2,60)]
+            assert node.shipments_by_prod[0] == [(1,-1,60), (2,0,60)]
         for node in env.nodes[4:]:
-            assert node.shipments_by_prod[0] == [(1,20), (2,20)]
+            assert node.shipments_by_prod[0] == [(1,-1,20), (2,0,20)]
 
         # ação para fornecer o máximo de material possível no primeiro fornecedor
         supply_action = np.array([1]+[0]*(env.action_space.shape[0]-1))
@@ -53,27 +57,35 @@ class TestSupplyChain2perStageEnv:
         rewards += rew
         check_rewards(rewards, info, env.num_products)
 
-        assert np.allclose(obs, [-0.4       , -0.4       , -0.4       ,  0.        ,  1.        ,
+        # assert np.allclose(obs, [-0.4       , -0.4       , -0.4       ,  0.        ,  1.        ,
+        #                         -0.6       , -0.2       , -1.        , -0.4       , -0.76      ,
+        #                         -1.        , -0.6       , -0.76      , -1.        , -0.8       ,
+        #                         -0.92      , -1.        , -0.86666667, -0.92      , -1.        ,
+        #                         -0.95      , -0.92      , -1.        , -0.93333333, -0.92      ,
+        #                         -1.        ,  0.6       ])
+
+        assert np.allclose(obs, [0.        , -1.       , -0.4       ,  0.        ,  1.        ,
                                 -0.6       , -0.2       , -1.        , -0.4       , -0.76      ,
                                 -1.        , -0.6       , -0.76      , -1.        , -0.8       ,
                                 -0.92      , -1.        , -0.86666667, -0.92      , -1.        ,
                                 -0.95      , -0.92      , -1.        , -0.93333333, -0.92      ,
-                                -1.        ,  0.6       ])
+                                -1.        ,  0.6       ])        
+        
         assert rew == -1015.0
 
-        assert env.nodes[0].shipments_by_prod[0] == [(2,60),(3,120)]
+        assert env.nodes[0].shipments_by_prod[0] == [(2,0,60),(3,1,120)]
         assert sum(env.nodes[0].stock) == 60
         for i, node in enumerate(env.nodes[1:4]):
-            assert node.shipments_by_prod[0] == [(2,60)]
+            assert node.shipments_by_prod[0] == [(2,0,60)]
             if i <= 2:
                 assert sum(node.stock) == 60
             else:
                 assert sum(node.stock) == 20
         for node in env.nodes[4:6]:
-            assert node.shipments_by_prod[0] == [(2,20)]
+            assert node.shipments_by_prod[0] == [(2,0,20)]
             assert sum(node.stock) == 20
         for i, node in enumerate(env.nodes[-2:]):
-            assert sum(node.stock) == 20 - env.customer_demands[0,i]
+            assert sum(node.stock) == 20 - env.customer_demands[1,i]
 
         # ação não fornecer material possível e enviar o máximo de material possível
         send_all_action = np.array([0,1,1]*2+[1]*2*4)
@@ -83,21 +95,29 @@ class TestSupplyChain2perStageEnv:
         rewards += rew
         check_rewards(rewards, info, env.num_products)
         
-        assert np.allclose(obs, [ 0.4       ,  0.8       , -1.        ,  1.        , -1.        ,
+        # assert np.allclose(obs, [ 0.4       ,  0.8       , -1.        ,  1.        , -1.        ,
+        #                         -1.        , -1.        , -1.        , -1.        , -1.        ,
+        #                         -0.04      , -1.        , -1.        , -1.        , -1.        ,
+        #                         -1.        , -0.68      , -1.        , -1.        , -1.        ,
+        #                         -0.88      , -1.        , -0.68      , -0.88666667, -1.        ,
+        #                         -1.        ,  0.2       ])
+
+        assert np.allclose(obs, [-0.4       , -0.4      , -1.        ,  1.        , -1.        ,
                                 -1.        , -1.        , -1.        , -1.        , -1.        ,
                                 -0.04      , -1.        , -1.        , -1.        , -1.        ,
                                 -1.        , -0.68      , -1.        , -1.        , -1.        ,
                                 -0.88      , -1.        , -0.68      , -0.88666667, -1.        ,
                                 -1.        ,  0.2       ])
+
         assert rew == -3469.0
 
-        assert env.nodes[0].shipments_by_prod[0] == [(3,120)]
+        assert env.nodes[0].shipments_by_prod[0] == [(3,1,120)]
         assert env.nodes[1].shipments_by_prod[0] == []
-        assert env.nodes[2].shipments_by_prod[0] == [(4,120), (4,120)]
+        assert env.nodes[2].shipments_by_prod[0] == [(4,2,120), (4,2,120)]
         assert env.nodes[3].shipments_by_prod[0] == []
-        assert env.nodes[4].shipments_by_prod[0] == [(4,40), (4,40)]
+        assert env.nodes[4].shipments_by_prod[0] == [(4,2,40), (4,2,40)]
         assert env.nodes[5].shipments_by_prod[0] == []
-        assert env.nodes[6].shipments_by_prod[0] == [(4,40), (4,40)]
+        assert env.nodes[6].shipments_by_prod[0] == [(4,2,40), (4,2,40)]
         assert env.nodes[7].shipments_by_prod[0] == []
 
         for node in env.nodes[:-2]:
@@ -112,17 +132,21 @@ class TestSupplyChain2perStageEnv:
         rewards += rew
         check_rewards(rewards, info, env.num_products)
 
-        assert np.allclose(obs, [-0.4 ,  0.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
+        # assert np.allclose(obs, [-0.4 ,  0.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
+        #                         -0.04, -0.76, -1.  , -1.  , -0.76, -1.  , -0.68, -1.  , -1.  ,
+        #                         -1.  , -1.  , -1.  , -0.68, -1.  , -1.  , -1.  , -1.  , -0.2 ])
+        assert np.allclose(obs, [0.4 ,  0.8 , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
                                 -0.04, -0.76, -1.  , -1.  , -0.76, -1.  , -0.68, -1.  , -1.  ,
                                 -1.  , -1.  , -1.  , -0.68, -1.  , -1.  , -1.  , -1.  , -0.2 ])
+        
         assert rew == -1752.0
         
         for i in [0,1,5,7]:
             assert env.nodes[i].shipments_by_prod[0] == []
-        assert env.nodes[2].shipments_by_prod[0] == [(4,120), (4,120), (5,60)]
-        assert env.nodes[3].shipments_by_prod[0] == [(5,60)]
-        assert env.nodes[4].shipments_by_prod[0] == [(4,40), (4,40)]
-        assert env.nodes[6].shipments_by_prod[0] == [(4,40), (4,40)]        
+        assert env.nodes[2].shipments_by_prod[0] == [(4,2,120), (4,2,120), (5,3,60)]
+        assert env.nodes[3].shipments_by_prod[0] == [(5,3,60)]
+        assert env.nodes[4].shipments_by_prod[0] == [(4,2,40), (4,2,40)]
+        assert env.nodes[6].shipments_by_prod[0] == [(4,2,40), (4,2,40)]        
         for node in env.nodes:
             assert sum(node.stock) == 0
         
@@ -130,7 +154,10 @@ class TestSupplyChain2perStageEnv:
         rewards += rew
         check_rewards(rewards, info, env.num_products)
 
-        assert np.allclose(obs, [-0.6 , -0.2 , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
+        # assert np.allclose(obs, [-0.6 , -0.2 , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
+        #                         -0.76, -1.  , -1.  , -0.76, -1.  , -1.  , -1.  , -0.86666667, -1.  ,
+        #                         -1.  , -0.86666667, -0.33, -1.  , -0.84, -1.  , -1.  , -0.84, -0.6 ])
+        assert np.allclose(obs, [-0.4 ,  0. , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
                                 -0.76, -1.  , -1.  , -0.76, -1.  , -1.  , -1.  , -0.86666667, -1.  ,
                                 -1.  , -0.86666667, -0.33, -1.  , -0.84, -1.  , -1.  , -0.84, -0.6 ])
         assert np.round(rew,3) == -6400.333
@@ -138,11 +165,11 @@ class TestSupplyChain2perStageEnv:
         for node in env.nodes[:2]:
             assert node.shipments_by_prod[0] == []
         for node in env.nodes[2:4]:
-            assert node.shipments_by_prod[0] == [(5,60)]
+            assert node.shipments_by_prod[0] == [(5,3,60)]
         for node in env.nodes[4:6]:
-            assert np.allclose(node.shipments_by_prod[0], [(6,33.333)])
+            assert np.allclose(node.shipments_by_prod[0], [(6,4,33.333)])
         for node in env.nodes[6:]:
-            assert node.shipments_by_prod[0] == [(6,40)]
+            assert node.shipments_by_prod[0] == [(6,4,40)]
         for node in env.nodes[:-2]:
             assert node.stock == 0
         assert sum(env.nodes[-2].stock) == 67
@@ -152,7 +179,10 @@ class TestSupplyChain2perStageEnv:
         rewards += rew
         check_rewards(rewards, info, env.num_products)
 
-        assert np.allclose(obs, [ 0.4 ,  0.2 , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
+        # assert np.allclose(obs, [ 0.4 ,  0.2 , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
+        #                          -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -0.86666667, -0.92, -1.  ,
+        #                          -0.86666667, -0.92, -0.45, -0.84, -1.  , -1.  , -0.84, -1.  , -1.  ])
+        assert np.allclose(obs, [-0.6 , -0.2 , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -1.  ,
                                  -1.  , -1.  , -1.  , -1.  , -1.  , -1.  , -0.86666667, -0.92, -1.  ,
                                  -0.86666667, -0.92, -0.45, -0.84, -1.  , -1.  , -0.84, -1.  , -1.  ])
         assert rew == -4479.0
@@ -161,9 +191,9 @@ class TestSupplyChain2perStageEnv:
         for node in env.nodes[:4]:
             assert node.shipments_by_prod[0] == []
         for node in env.nodes[4:6]:
-            assert np.allclose(node.shipments_by_prod[0], [(6,33.333), (7,10), (7,10)])
+            assert np.allclose(node.shipments_by_prod[0], [(6,4,33.333), (7,5,10), (7,5,10)])
         for node in env.nodes[-2:0]:
-            assert node.shipments_by_prod[0] == [(6,40)]
+            assert node.shipments_by_prod[0] == [(6,4,40)]
         for node in env.nodes[:-2]:
             assert sum(node.stock) == 0
         assert sum(env.nodes[-2].stock) == 55
@@ -182,7 +212,7 @@ class TestSupplyChain2perStageEnv:
             env.seed(seed+1)
             for epis in range(episodes):
                 env.reset()
-                assert np.all(demands[10*seed+epis] == env.customer_demands[:360])
+                assert np.all(demands[10*seed+epis] == env.customer_demands[1:361])
                 done = False
                 while not done:
                     _, _, done, _ = env.step(env.action_space.sample())
@@ -200,7 +230,7 @@ class TestSupplyChain2perStageEnv:
             env.seed(seed+1)
             for epis in range(episodes):
                 env.reset()
-                assert np.all(demands[10*seed+epis] == env.customer_demands[:360])
+                assert np.all(demands[10*seed+epis] == env.customer_demands[1:361])
                 done = False
                 while not done:
                     _, _, done, _ = env.step(env.action_space.sample())
@@ -281,7 +311,7 @@ class TestSupplyChain2perStageSeasonalEnv:
             env.seed(seed+1)
             for epis in range(episodes):
                 env.reset()
-                assert np.all(demands[10*seed+epis] == env.customer_demands[:360])
+                assert np.all(demands[10*seed+epis] == env.customer_demands[1:361])
                 done = False
                 while not done:
                     _, _, done, _ = env.step(env.action_space.sample())
@@ -299,7 +329,7 @@ class TestSupplyChain2perStageSeasonalEnv:
             env.seed(seed+1)
             for epis in range(episodes):
                 env.reset()
-                assert np.all(demands[10*seed+epis] == env.customer_demands[:360])
+                assert np.all(demands[10*seed+epis] == env.customer_demands[1:361])
                 done = False
                 while not done:
                     _, _, done, _ = env.step(env.action_space.sample())

@@ -87,7 +87,7 @@ class TestMultiproduct2PerStage():
         env.seed(0)
         env.reset()
 
-        assert np.all(env.customer_demands[:2].flatten() == [44,47,64,67,67,9,83,21])
+        assert np.all(env.customer_demands[:3].flatten() == [0,0,0,0,44,47,64,67,67,9,83,21])
 
         # ação para fornecer e enviar metade do material possível (sendo 1/4 pra cada destino)
         half_action = np.array(2*[0.5,0.5,0.25,0.5,0.25,0.5]+4*[0.25,0.5,0.25,0.5])
@@ -107,14 +107,14 @@ class TestMultiproduct2PerStage():
 
         # conferir shipments
 
-        assert env.nodes[0].shipments_by_prod == [[(2,4), (3,25)],[(2,3), (3,30)]]
-        assert env.nodes[1].shipments_by_prod == [[(2,1), (3,50)],[(2,2), (3,55)]]
-        assert env.nodes[2].shipments_by_prod == [[(2,2), (3,3.75), (3,3)], [(2,4), (3,1.5), (3,0.75)]]
-        assert env.nodes[3].shipments_by_prod == [[(2,3), (3,3.75), (3,3)], [(2,1), (3,1.5), (3,0.75)]]
-        assert env.nodes[4].shipments_by_prod == [[(2,6), (3,2.25), (3,1.75)], [(2,8), (3,0.5), (3,0.5)]]
-        assert env.nodes[5].shipments_by_prod == [[(2,7), (3,2.25), (3,1.75)], [(2,5), (3,0.5), (3,0.5)]]
-        assert env.nodes[6].shipments_by_prod == [[(2,5), (3,6), (3,5)], [(2,15), (3,3), (3,3)]]
-        assert env.nodes[7].shipments_by_prod == [[(2,10), (3,6), (3,5)], [(2,0), (3,3), (3,3)]]
+        assert env.nodes[0].shipments_by_prod == [[(2,0,4), (3,1,25)],[(2,0,3), (3,1,30)]]
+        assert env.nodes[1].shipments_by_prod == [[(2,0,1), (3,1,50)],[(2,0,2), (3,1,55)]]
+        assert env.nodes[2].shipments_by_prod == [[(2,0,2), (3,1,3.75), (3,1,3)], [(2,0,4), (3,1,1.5), (3,1,0.75)]]
+        assert env.nodes[3].shipments_by_prod == [[(2,0,3), (3,1,3.75), (3,1,3)], [(2,0,1), (3,1,1.5), (3,1,0.75)]]
+        assert env.nodes[4].shipments_by_prod == [[(2,0,6), (3,1,2.25), (3,1,1.75)], [(2,0,8), (3,1,0.5), (3,1,0.5)]]
+        assert env.nodes[5].shipments_by_prod == [[(2,0,7), (3,1,2.25), (3,1,1.75)], [(2,0,5), (3,1,0.5), (3,1,0.5)]]
+        assert env.nodes[6].shipments_by_prod == [[(2,0,5), (3,1,6), (3,1,5)], [(2,0,15), (3,1,3), (3,1,3)]]
+        assert env.nodes[7].shipments_by_prod == [[(2,0,10),(3,1,6), (3,1,5)], [(2,0,0), (3,1,3), (3,1,3)]]
 
         # conferir custos
 
@@ -156,7 +156,7 @@ class TestMultiproduct2PerStage():
 
         # conferir estado
 
-        expected_obs = [67/100, 9/100, 83/100, 21/100, # demandas do próximo período
+        expected_obs = [44/100, 47/100, 64/100, 67/100, # demandas do período atual
                         # Supplier1
                           6/20, 1.5/10, # estoques
                           4/50, 25/50, 3/60, 30/60, # fornecimentos
@@ -208,14 +208,14 @@ class TestMultiproduct2PerStage():
 
         # conferir shipments
 
-        assert env.nodes[0].shipments_by_prod == [[(3,25),(4, 50)], [(3,30),(4,30)]]
-        assert env.nodes[1].shipments_by_prod == [[(3,50),(4,100)], [(3,55),(4,55)]]
-        assert env.nodes[2].shipments_by_prod == [[(3,3),(3,3.75),(4,(7.5+1)/2),(4,(6+4)/2)], [(3,0.75),(3,1.5),(4,(3+2)/4),(4,(1.5+3)/4)]]
-        assert env.nodes[3].shipments_by_prod == [[(3,3),(3,3.75),(4,(7.5+1)/2),(4,(6+4)/2)], [(3,0.75),(3,1.5),(4,(3+2)/4),(4,(1.5+3)/4)]]
-        assert env.nodes[4].shipments_by_prod == [[(3,1.75),(3,2.25),(4,(9+3)/2/2),(4,(7+2)/2/2)], [(3,0.5),(3,0.5),(4,(3+1)/3/4),(4,(3+4)/3/4)]]
-        assert env.nodes[5].shipments_by_prod == [[(3,1.75),(3,2.25),(4,(9+3)/2/2),(4,(7+2)/2/2)], [(3,0.5),(3,0.5),(4,(3+1)/3/4),(4,(3+4)/3/4)]]
-        assert env.nodes[6].shipments_by_prod == [[(3,5),(3,6),(4,(12+7)/2),(4,(10+6)/2)], [(3,3),(3,3),(4,(6+5)/4),(4,(6+8)/4)]]
-        assert env.nodes[7].shipments_by_prod == [[(3,5),(3,6),(4,(12+7)/2),(4,(10+6)/2)], [(3,3),(3,3),(4,(6+5)/4),(4,(6+8)/4)]]
+        assert env.nodes[0].shipments_by_prod == [[(3,1,25),(4,2, 50)], [(3,1,30),(4,2,30)]]
+        assert env.nodes[1].shipments_by_prod == [[(3,1,50),(4,2,100)], [(3,1,55),(4,2,55)]]
+        assert env.nodes[2].shipments_by_prod == [[(3,1,3),(3,1,3.75),(4,2,(7.5+1)/2),(4,2,(6+4)/2)], [(3,1,0.75),(3,1,1.5),(4,2,(3+2)/4),(4,2,(1.5+3)/4)]]
+        assert env.nodes[3].shipments_by_prod == [[(3,1,3),(3,1,3.75),(4,2,(7.5+1)/2),(4,2,(6+4)/2)], [(3,1,0.75),(3,1,1.5),(4,2,(3+2)/4),(4,2,(1.5+3)/4)]]
+        assert env.nodes[4].shipments_by_prod == [[(3,1,1.75),(3,1,2.25),(4,2,(9+3)/2/2),(4,2,(7+2)/2/2)], [(3,1,0.5),(3,1,0.5),(4,2,(3+1)/3/4),(4,2,(3+4)/3/4)]]
+        assert env.nodes[5].shipments_by_prod == [[(3,1,1.75),(3,1,2.25),(4,2,(9+3)/2/2),(4,2,(7+2)/2/2)], [(3,1,0.5),(3,1,0.5),(4,2,(3+1)/3/4),(4,2,(3+4)/3/4)]]
+        assert env.nodes[6].shipments_by_prod == [[(3,1,5),(3,1,6),(4,2,(12+7)/2),(4,2,(10+6)/2)], [(3,1,3),(3,1,3),(4,2,(6+5)/4),(4,2,(6+8)/4)]]
+        assert env.nodes[7].shipments_by_prod == [[(3,1,5),(3,1,6),(4,2,(12+7)/2),(4,2,(10+6)/2)], [(3,1,3),(3,1,3),(4,2,(6+5)/4),(4,2,(6+8)/4)]]
 
   
     def test_SupplyChainMultiProduct(self):
